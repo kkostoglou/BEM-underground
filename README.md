@@ -1,6 +1,6 @@
 # BEM Underground
 
-Python translation of a two-dimensional boundary-element program for underground cavities, wave loading, and multi-zone analyses. The repository preserves the original Fortran material and thesis-based DAT examples alongside the Python solver.
+Python translation of a two-dimensional boundary-element program for underground cavities with friendly Graphics User Interface (GUI) for data input, with P & SV & explosive wave loading, and multi-zone analyses. The repository preserves the original Fortran material and thesis-based DAT examples alongside the Python solver.
 
 ## Install and run
 
