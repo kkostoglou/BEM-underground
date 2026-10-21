@@ -2,6 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
+from .runtime_paths import project_directory
 from .input_deck import ExplosionPoint, InputDeck, PlaneWave, SurfaceRamp, TractionNodes, read_input_deck
 
 @dataclass(frozen=True)
@@ -41,7 +42,7 @@ _THESIS_CATEGORIES = {
 }
 
 def project_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    return project_directory()
 
 def example_directory(root: Path | None = None) -> Path:
     base = root or project_root()

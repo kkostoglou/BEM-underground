@@ -2,6 +2,11 @@
 
 Python translation of a two-dimensional boundary-element program for underground cavities with friendly Graphics User Interface (GUI) for data input, with P & SV & explosive wave loading, and multi-zone analyses. The repository preserves the original Fortran material and thesis-based DAT examples alongside the Python solver.
 
+## Standalone Windows executable
+
+A build recipe is available for running the GUI without installing Python. See
+[WINDOWS_EXE.md](WINDOWS_EXE.md) for usage, data locations, and rebuild instructions.
+
 ## Install and run
 
 For complete Windows Conda and Python virtual-environment instructions, Linux/macOS notes, verification commands, DAT examples, and troubleshooting, read [INSTALLATION.md](INSTALLATION.md).

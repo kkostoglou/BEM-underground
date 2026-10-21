@@ -32,6 +32,7 @@ from .plot_geometry import draw_boundary, draw_explosion, draw_geometry_key, dra
 from .case_catalog import ExampleCase, case_details, discover_examples, example_directory, identify_input_case
 from .thesis_figures import chapter3_figures, thesis_graphs_for_case
 from .gui_run_worker import run_gui_case
+from .runtime_paths import project_directory
 from .mesh import mesh_section, combine_meshes
 
 
@@ -453,7 +454,7 @@ class BemApplication:
         self.input_path = StringVar()
         self.output_path = StringVar()
         default_input_dir = example_directory()
-        self.last_input_dir_file = Path(__file__).resolve().parents[2] / "examples" / "results" / ".last_input_folder"
+        self.last_input_dir_file = project_directory() / "examples" / "results" / ".last_input_folder"
         self.last_input_dir = default_input_dir
         if self.last_input_dir_file.is_file():
             try:
@@ -2088,7 +2089,7 @@ class BemApplication:
             return
         default = (self.result_path.stem if self.result_path else "result") + "_report.pdf"
         path = filedialog.asksaveasfilename(title="Export professional PDF report",
-                                            initialdir=str(Path(__file__).resolve().parents[2] / "examples/results/pdf"),
+                                            initialdir=str(project_directory() / "examples/results/pdf"),
                                             initialfile=default,
                                             defaultextension=".pdf", filetypes=(("PDF report", "*.pdf"),))
         if not path:
@@ -2100,7 +2101,7 @@ class BemApplication:
         try:
             result = self.result
             title = f"BEM - {self.active_deck.title}" if self.active_deck else "BEM - Boundary Element Underground result"
-            project_root = Path(__file__).resolve().parents[2]
+            project_root = project_directory()
             def display_path(value: str | Path) -> str:
                 if not value:
                     return "Not recorded"

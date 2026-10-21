@@ -29,3 +29,5 @@ Thumbs.db
 /examples/results/npz/*
 !/examples/results/npz/.gitkeep
 /github-upload/
+
+/build-exe.log
