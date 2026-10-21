@@ -1,0 +1,90 @@
+                              ** INDATA **
+
+                                     BY
+                             KOSTOGLOU KONSTANTINOS
+
+
+             --INPUT DATA FOR BOUNDARY ELEMENT PROGRAM --
+
+
+          RUN DATE:                                                          
+          TIME OF RUN:                                   
+          RUN BY:                                                            
+          INPUT DATA FILENAME:            INFPL1.DAT    
+          OUTPUT PREPROCESSING FILENAME:  INFPL1.PRE    
+          OUTPUT PROCESSING FILENAME:     INFPL1.PRO    
+          OUTPUT POSTPROCESSING FILENAME: INFPL1.POS    
+
+
+          DATA IN INTERNATIONAL UNIT SYSTEM
+
+
+
+
+TITLE
+2D L.D., CIRCLE, INFINITY, PLANE WAVE                                           
+TYPE.PROBLEM
+DOMAIN............  1
+ANALYSIS..........  1
+SECTION.TYPE
+SHAPE.............  1
+XELEMENTS.........  8
+RADIUS............       5.000
+XCENTER...........       1.000
+YCENTER...........        .000
+ROTATION..........        .000
+MATERIAL.PROPERTIES
+E (MPa)...........   20000.000
+NU................        .250
+RO (MPA*S**2/M**2).     .002550
+STEP.NUMBER
+ 20
+TIME.TOTAL
+        .015
+LOADS
+LONGITUDINAL.STRESS.     -10.000
+TRANSVERSE.SHEAR..        .000
+ANGLE.............        .000 DEG
+PLOTS
+                    2  5 12 21 22 28 29 30
+NODE.PLOTS
+                    1 15 13 11  9  7
+END
+
+
+ MESH NODES
+ ==========
+ NODE       X(m)      Y(m)    COND TYPE
+ ---------------------------------------
+   1           5.00        .00  0      0
+   2           4.61      -1.91  0      0
+   3           3.53      -3.53  0      0
+   4           1.91      -4.61  0      0
+   5            .00      -5.00  0      0
+   6          -1.91      -4.61  0      0
+   7          -3.53      -3.53  0      0
+   8          -4.61      -1.91  0      0
+   9          -5.00        .00  0      0
+  10          -4.61       1.91  0      0
+  11          -3.53       3.53  0      0
+  12          -1.91       4.61  0      0
+  13            .00       5.00  0      0
+  14           1.91       4.61  0      0
+  15           3.53       3.53  0      0
+  16           4.61       1.91  0      0
+
+
+ MESH ELEMENTS
+ =============
+ ELEMENT     CONNECTIVITY            TYPE
+           FIRST   MIDDLE  LAST
+   1     16          1          2    0
+   2      2          3          4    0
+   3      4          5          6    0
+   4      6          7          8    0
+   5      8          9         10    0
+   6     10         11         12    0
+   7     12         13         14    0
+   8     14         15         16    0
+SP(AX)*N/(1-N).........
+       -3.333333333333333

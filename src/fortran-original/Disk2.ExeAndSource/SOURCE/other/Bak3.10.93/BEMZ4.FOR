@@ -1,0 +1,906 @@
+C---------------------------------------------------------------------
+        SUBROUTINE GENRINT(NCOUNT,KONN,MBCU,ZLOAD,ZTEMP,
+     &    ZDINTX,ZDINTY,NA1,NA2,NA3,N1,N2,N3,N4,N9,LBCU,
+     &    NDTYPE,LINV,MINV)
+C
+C       READING OF LOADING AND DEFORMATION OF SYSTEM MATRICES
+C
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION KONN(N3,N4),MBCU(N2)
+        DIMENSION ZLOAD(N2),ZTEMP(N2)
+        DIMENSION ZKU(3,2,2),ZKT(3,2,2),DJUMP(2,2)
+        DIMENSION LBCU(N3),NDTYPE(N1)
+        DIMENSION LINV(NA2),MINV(NA2)
+        DIMENSION ZDINTX(N9,NINT),ZDINTY(N9,NINT)
+        COMMON/CONTR/NNODE,NELEM,NP
+C                 MODIFICATION FOR VISCOELESTICITY
+        COMMON/MATER/RLA,RMU,RNU,RHO,C1,C2,TIM,FVISC,NMODE
+        COMMON/FREE/NFFS,NFRE
+C       INTERNAL POINTS WITH THEIR CO-ORDINATES
+        COMMON/INTERN/NINT,CINT(10,2)
+      COMPLEX*16 ZC[ALLOCATABLE](:)
+      COMPLEX*16 ZD[ALLOCATABLE](:)
+      COMPLEX*16 ZGM1[ALLOCATABLE](:,:)
+      COMPLEX*16 ZFM1[ALLOCATABLE](:,:)
+      INTEGER*2 STAT,IERR
+      ALLOCATE (ZC(2*NINT),STAT=IERR)
+      ALLOCATE (ZD(2*NINT),STAT=IERR)
+      ALLOCATE (ZGM1(2*NINT,NA2),STAT=IERR)
+      ALLOCATE (ZFM1(2*NINT,NA2),STAT=IERR)
+
+C
+C       JUMP TERM FOR INFINITY
+C        DATA DJUMP/1.0D0,0.0D0,0.0D0,1.0D0/
+C       JUMP TERM FOR INFINITY
+	DJUMP(1,1)=1.0D0
+        DJUMP(2,1)=0.0D0
+        DJUMP(1,2)=0.0D0
+	DJUMP(2,2)=1.0D0
+        CALL CLRZDD(ZGM1,2*NINT,NA2)
+        CALL CLRZDD(ZFM1,2*NINT,NA2)
+C       DATA DJUMP/1.0D0,0.0D0,0.0D0,1.0D0/
+C
+        WRITE(6,100) NCOUNT
+        NOD=3
+
+
+
+
+
+        GSCALE=RMU
+CC     SCALING FACTOR THE MAXIMUM MU
+C      GSCALE=0.0D0
+C      DO II=1,NZONE
+CC        GSCALE=RMU
+C        GSCALE1=RZMU(II)
+C        IF(GSCALE1.GT.GSCALE) GSCALE=GSCALE1
+C      END DO
+
+
+
+
+
+        REWIND 7
+        REWIND 8
+        DO 2 ICL=1,NINT
+        IROW=2*(ICL-1)
+        DO 3 JCL=1,NA3
+        DO 4 K1=1,NOD
+        LN=KONN(JCL,K1)
+        JCOL=2*(LN-1)
+        READ(7,*) ((ZKU(K1,K2,K3),K2=1,2),K3=1,2)
+        READ(8,*) ((ZKT(K1,K2,K3),K2=1,2),K3=1,2)
+        DO 6 I=1,2
+        DO 6 J=1,2
+          ZGM1(IROW+I,JCOL+J)=ZGM1(IROW+I,JCOL+J)+
+     &            ZKU(K1,I,J)*GSCALE
+  50    CONTINUE
+        ZFM1(IROW+I,JCOL+J)=ZFM1(IROW+I,JCOL+J)+
+     &          ZKT(K1,I,J)
+  6     CONTINUE
+  4     CONTINUE
+  3     CONTINUE
+C
+C       ADJUST DIAGONAL TERMS USING CONCEPT OF SUMMAT. OF OFF-DIAGONALS
+C       DJUMP ARE JUMP TERMS FOR EXTERIOR TYPE PROBLEM
+C
+C        DO 9 I=1,2
+C        DO 9 J=1,2
+  2     CONTINUE
+        REWIND 7
+        REWIND 8
+        CALL BOUNDINT(ZGM1,ZFM1,ZLOAD,ZTEMP,MBCU,LINV,MINV,
+     &       ZDINTX,ZDINTY,ZC,ZD,N1,NA2,N9,NCOUNT,GSCALE)
+  27    CONTINUE
+C
+C       SORT OUT DISPLACEMENTS AND TRACTIONS-STORE IN ZTEMP,ZLOAD RESP.
+C
+C       PRINTING OF TRACTIONS AND DISPLACEM. IN LAPLACE TRANSFORM DOMAIN
+        WRITE(6,102) NCOUNT
+        WRITE(6,103) (ZDINTX(NCOUNT,I),I=1,NINT)
+        WRITE(6,120) NCOUNT
+        WRITE(6,103) (ZDINTY(NCOUNT,I),I=1,NINT)
+  100   FORMAT(//2X,' INTERNAL POINTS AT STEP=',I3)
+  102   FORMAT(//2X,' X DISPLACEMENTS AT STEP=',I3)
+  103   FORMAT(8(2X,E12.6))
+  120   FORMAT(//2X,' Y DISPLACEMENTS AT STEP=',I3)
+        DEALLOCATE (ZC,STAT=IERR)
+        DEALLOCATE (ZD,STAT=IERR)
+        DEALLOCATE (ZGM1,STAT=IERR)
+        DEALLOCATE (ZFM1,STAT=IERR)
+        RETURN
+        END
+C------------------------------------------------
+        SUBROUTINE BOUNDINT(ZGM1,ZFM1,ZLOAD,ZTEMP,MBCU,LINV,MINV,
+     &           ZDINTX,ZDINTY,ZC,ZD,N1,N2,N9,NCOUNT,GSCALE)
+C           ZDIS,
+C
+C       MATRIX RE-ARRANGEM. ACCORDING TO ROUNDARY CONDIT. AND SOLUTION
+C
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+C        DIMENSION ZGM(N2,N2),ZFM(N2,N2),ZLOAD(N2),ZTEMP(N2),MBCU(N2)
+        DIMENSION ZGM1(2*NINT,N2),ZFM1(2*NINT,N2)
+        DIMENSION ZLOAD(N2),ZTEMP(N2),MBCU(N2)
+        DIMENSION ZC(2*NINT),ZD(2*NINT)
+        DIMENSION LINV(N2),MINV(N2)
+        DIMENSION ZDINTX(N9,NINT),ZDINTY(N9,NINT)
+
+
+C        DIMENSION ZDIS(2)
+C        DIMENSION ZDIS(2*NINT)
+C       INTERNAL POINTS WITH THEIR CO-ORDINATES
+        COMMON/INTERN/NINT,CINT(10,2)
+C
+C       INTERCHANGE COLUMNS OF ZGM, ZFM MATRICES
+C
+        NKA=N2
+        DO 5 J=1,NKA
+          IF (MBCU(J) .EQ. 0) GO TO 5
+          DO 6 I=1,2*NINT
+            ZTEMP(I)=ZFM1(I,J)
+            ZFM1(I,J)=-ZGM1(I,J)
+            ZGM1(I,J)=-ZTEMP(I)
+  6       CONTINUE
+  5     CONTINUE
+C
+C       SOLUTION FOR RESPONSE
+C
+C       SCALING FACTOR FOR TRACTIONS
+        DO 10 I=1,N2
+          LC=MBCU(I)
+          IF (LC .EQ. 1) GO TO 10
+          ZLOAD(I)=ZLOAD(I)/GSCALE
+  10    CONTINUE
+        CALL ZAPROD(ZGM1,ZLOAD,2*NINT,NKA,ZC)
+        CALL ZAPROD(ZFM1,ZTEMP,2*NINT,NKA,ZD)
+        DO 11 I=1,NINT
+            JREF=2*(I-1)
+            ZDINTX(NCOUNT,I)=ZDINTX(NCOUNT,I)+ZC(JREF+1)-
+     &        ZD(JREF+1)
+            ZDINTY(NCOUNT,I)=ZDINTY(NCOUNT,I)+ZC(JREF+2)-
+     &        ZD(JREF+2)
+  11    CONTINUE
+        RETURN
+        END
+C
+C------------------------------------------------
+        SUBROUTINE ZMINV(A,N,L,M)
+C
+        IMPLICIT COMPLEX*16 (A-H)
+        IMPLICIT REAL*8 (R)
+        DIMENSION A(N*N),L(N),M(N)
+C
+        DO 5 I=1,N
+          L(I)=0
+          M(I)=0
+  5     CONTINUE
+        NLIN=6
+        NK=-N
+        DO 180 K=1,N
+        NK=NK+N
+        L(K)=K
+        M(K)=K
+        KK=NK+K
+        BIGA=A(KK)
+        DO 20 J=K,N
+        IZ=N*(J-1)
+        DO 20 I=K,N
+        IJ=IZ+I
+        CA=A(IJ)
+        RA=CDABS(CA)
+        RB=CDABS(BIGA)
+        IF (RB-RA) 10,20,20
+  10    BIGA=A(IJ)
+        L(K)=I
+        M(K)=J
+  20    CONTINUE
+C
+C       INTERCHANGE ROWS
+C
+        J=L(K)
+        IF (J-K) 50,50,30
+  30    KI=K-N
+        DO 40 I=1,N
+        KI=KI+N
+        HOLD=-A(KI)
+        JI=KI-K+J
+        A(KI)=A(JI)
+  40    A(JI)=HOLD
+C
+C       INTERCHANGE COLUMNS
+C
+  50    I=M(K)
+        IF (I-K) 80,80,60
+  60    JP=N*(I-1)
+        DO 70 J=1,N
+        JK=NK+J
+        JI=JP+J
+        HOLD=-A(JK)
+        A(JK)=A(JI)
+  70    A(JI)=HOLD
+
+  80    CONTINUE
+
+C        WRITE (NLIN,91)K
+C  91    FORMAT ('  K =',I3)
+C        WRITE (NLIN,92)BIGA
+C  92    FORMAT ('      BIGA=',E12.6,E12.6)
+
+C  80    IF (CDABS(BIGA)-1.0D-15) 90,100,100
+        IF (CDABS(BIGA)-1.0D-15) 90,100,100
+  90    CONTINUE
+        WRITE (NLIN,93)
+  93   FORMAT(10X,'ERROR : ')
+        WRITE (NLIN,95) K,BIGA
+  95    FORMAT(20X,'DURING A MATRIX INVERSION OPERATION A ZERO',/
+     &    20X,'DETERMINANT HAS BEEN DETECTED. THE RUN HAS BEEN',/
+     &    20X,'TERMINATED. ROW OR COLUMN NO. WAS ',I4,/
+     &    20X,'DETERMINANT VALUE WAS ',E12.6,E12.6)
+        STOP
+  100   DO 120 I=1,N
+        IF (I-K) 110,120,110
+  110   IK=NK+I
+        A(IK)=A(IK)/(-BIGA)
+  120   CONTINUE
+C
+C       REDUCE MATRIX
+C
+        DO 150 I=1,N
+        IK=NK+I
+        HOLD=A(IK)
+        IJ=I-N
+        DO 150 J=1,N
+        IJ=IJ+N
+        IF (I-K) 130,150,130
+  130   IF (J-K) 140,150,140
+  140   KJ=IJ-I+K
+        A(IJ)=HOLD*A(KJ)+A(IJ)
+  150   CONTINUE
+C
+C       DEVIDE BY PIVOT
+C
+        KJ=K-N
+        DO 170 J=1,N
+        KJ=KJ+N
+        IF (J-K) 160,170,160
+  160   A(KJ)=A(KJ)/BIGA
+  170   CONTINUE
+C
+C       PRODUCT OF PIVOTS
+C       REPLACE PIVOT BY RECIPROCAL
+C
+        A(KK)=1.0D0/BIGA
+  180   CONTINUE
+C
+C       FINAL ROW AND COLUMN INTERCHANGE
+C
+        K=N
+  190   K=(K-1)
+        IF (K) 260,260,200
+  200   I=L(K)
+        IF (I-K) 230,230,210
+  210   JQ=N*(K-1)
+        JR=N*(I-1)
+        DO 220 J=1,N
+        JK=JQ+J
+        HOLD=A(JK)
+        JI=JR+J
+        A(JK)=-A(JI)
+  220   A(JI)=HOLD
+  230   J=M(K)
+        IF (J-K) 190,190,240
+  240   KI=K-N
+        DO 250 I=1,N
+        KI=KI+N
+        HOLD=A(KI)
+        JI=KI-K+J
+        A(KI)=-A(JI)
+  250   A(JI)=HOLD
+        GO TO 190
+  260   RETURN
+        END
+C------------------------------------------------
+        SUBROUTINE ZVPROD(ZA,ZB,N,ZC)
+C
+C       PRODUCT OF COMPLEX SQUARE MATRIX TIMES COMPLEX VECTOR
+C
+        IMPLICIT COMPLEX*16 (Z)
+        DIMENSION ZA(N,N),ZB(N),ZC(N)
+C
+        DO 20 I=1,N
+        ZC(I)=DCMPLX(0.0D0,0.0D0)
+        DO 10 J=1,N
+        ZC(I)=ZC(I)+ZA(I,J)*ZB(J)
+  10    CONTINUE
+  20    CONTINUE
+        RETURN
+        END
+C------------------------------------------------
+        SUBROUTINE ZAPROD(ZA,ZB,NL,NC,ZC)
+C
+C       PRODUCT OF COMPLEX NON-SQUARE MATRIX ZA[NL,NC]
+C       TIMES COMPLEX VECTOR ZB[NC]
+C
+        IMPLICIT COMPLEX*16 (Z)
+        DIMENSION ZA(NL,NC),ZB(NC),ZC(NL)
+C
+        DO I=1,NL
+          ZC(I)=DCMPLX(0.0D0,0.0D0)
+        END DO
+        DO 20 I=1,NL
+C        ZC(I)=DCMPLX(0.0D0,0.0D0)
+        DO 10 J=1,NC
+        ZC(I)=ZC(I)+ZA(I,J)*ZB(J)
+  10    CONTINUE
+  20    CONTINUE
+        RETURN
+        END
+C
+C------------------------------------------------
+        SUBROUTINE ZSPROD(ZA,ZB,NL,NC,ZC)
+C
+C       PRODUCT OF COMPLEX NON-SQUARE MATRIX ZA[NL,NC]
+C       TIMES COMPLEX VECTOR ZB[NC]
+C
+        IMPLICIT COMPLEX*16 (Z)
+        DIMENSION ZA(NL,NC),ZB(NC),ZC(NL,NC)
+C
+        DO I=1,NL
+        DO J=1,NC
+          ZC(I,J)=DCMPLX(0.0D0,0.0D0)
+        END DO
+        END DO
+        DO 20 I=1,NL
+C        ZC(I)=DCMPLX(0.0D0,0.0D0)
+        DO 10 J=1,NC
+        ZC(I,J)=ZA(I,J)*ZB(J)
+  10    CONTINUE
+  20    CONTINUE
+        RETURN
+        END
+C
+C------------------------------------------------
+        SUBROUTINE HOOP(KONN,ZLOAD,ZTEMP,ZLOAD1,NDTYPE,NZTYPE,
+     &    XCR,YCR,NA1,NA2,NA3,N1,N2,N3,N4,N5,ZZ1,ZZ2,ZZ3,Z,KZON,MBD)
+C
+C       HOOP STRESSES IN THE LAPLACE DOMAIN
+C
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+C        DIMENSION KZON(MBD,N3,N4)
+        DIMENSION KZON(NZONE,N3,N4)
+
+
+        DIMENSION KONN(N3,N4),ZLOAD(N2),ZTEMP(N2),XCR(N1),YCR(N1)
+        DIMENSION ZMA(7,7),ZV(7),ZW(7)
+        DIMENSION ZTR(2),ZDI(2)
+        DIMENSION LDIR(3),XY(3,2),SPOINT(3),SHP(3),DSHP(3),RN(2),RQ(2)
+c        DIMENSION ZZ1(N4,N3),ZZ2(N4,N3),ZZ3(N4,N3)
+C        DIMENSION ZZ1(MBD,N4,N3),ZZ2(MBD,N4,N3),ZZ3(MBD,N4,N3)
+        DIMENSION ZZ1(NZONE,N4,N3),ZZ2(NZONE,N4,N3),ZZ3(NZONE,N4,N3)
+
+
+
+
+
+
+
+
+
+
+        DIMENSION ZLOAD1(N5)
+C        DIMENSION NONN(N1,N4)
+        DIMENSION LINV(7),MINV(7)
+        DIMENSION NDTYPE(N1)
+C        DIMENSION NZTYPE(MBD,N1)
+        DIMENSION NZTYPE(NZONE,N1)
+
+
+
+
+C
+        COMMON/CONTR/NNODE,NELEM,NP
+C                 MODIFICATION FOR VISCOELESTICITY
+        COMMON/MATER/RLA,RMU,RNU,RHO,C1,C2,TIM,FVISC,NMODE
+        COMMON/GAUSS/GPN(10,10),WTN(10,10),GPS(10,10),WTS(10,10)
+        COMMON/FREE/NFFS,NFRE
+C&&&&&&&&&&&&&&&&&&&&
+C     COMMON BLOCK FOR ZONES: NZONE IS THE TOTAL NUMBER OF ZONE BOUNDARIES
+C                             =0: NO ZONES, >0: ZONES ARE PRESENT
+      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,5)
+      COMMON/NUMER/NGAUS,NSNG,NCASE,NONSNG(10),DNONSNG1(10),
+     &             DNONSNG2(10)
+
+
+
+C&&&&&&&&&&&&&&&&&&&&
+        NOD=3
+        DATA SPOINT/-1.0D0,0.0D0,1.0D0/
+         READ(2,*) ZLOAD1
+C****************
+C     THE INCIDED LOADS ON THE INTERFACE ARE CONSIDERED AS ZERO
+      DO II=1,N1
+C       FOR THE NODES OF INTERFACE BOUNDARY (NDTYPE=8)
+
+
+
+C^^^^^^^^^^^^&&&&&&&&&&&&&&^^^^^^^^^^^^^^^^
+C^^^^^^^^^^^^&&&&&&&&&&&&&&^^^^^^^^^^^^^^^^
+C        IF(NDTYPE(II).EQ.8) THEN
+        IF((NDTYPE(II).EQ.8).OR.(NDTYPE(II).EQ.6)) THEN
+
+
+
+
+
+
+
+          III=3*(II-1)
+          ZLOAD1(III+1)=DCMPLX(0.0D0,0.0D0)
+          ZLOAD1(III+2)=DCMPLX(0.0D0,0.0D0)
+          ZLOAD1(III+3)=DCMPLX(0.0D0,0.0D0)
+        ENDIF
+      END DO
+C
+C     LOOP FOR ALL THE ZONES, IN ORDER TO FIND THE KERNELS FOR ALL THE
+C     ZONES SEPARATELLY.
+      DO 24 K=1,NZONE
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CC     ATTENTION !!!!!!!!!!!!!!!
+CC     ONLY THE 2ND ZONE IS EXAMINED HERE
+C      IF((K.EQ.1).AND.(NZONE.NE.1)) GO TO 24
+C      IF((K.EQ.3).AND.(NZONE.NE.1)) GO TO 24
+
+
+
+
+
+
+
+
+C       ***********
+C       NUMBER OF ENLOSING BOUNDARIES OF ZONE K
+C       IBOUN(K,1) IS THE OUTER BOUNDARY OF ZONE K AND IBOUN(K,2) THE INNER
+c        LO=IBOU(K,1)
+c        LI=IBOU(K,2)
+C       CASE THAT THE INNER BOUNDARY IS A FREE BOUNDARY
+c        IF(LI.LT.0) LI=-LI
+
+
+        DO 3 JCL=1,NA3
+C&&&&&&&&&&&&&&&&&&&
+C             PROCEED ONLY FOR THE ELEMENTS OF THE ZONE K
+C             SEARCH ARRAY KZON (ZONE K), TO FIND IF ELEMENT JCL IS INCLUDED
+              KZDIAK1=0
+              DO 51 KKK=1,NOD
+                K1=KZON(K,JCL,KKK)
+C               THE ELEMENT JCL IS PART OF THE ZONE K, ONLY IF ALL THE
+C               CONNECTIVITY NODES ARE NOT 0
+                IF(K1.GT.0) KZDIAK1=1
+  51          CONTINUE
+              IF(KZDIAK1.EQ.1) THEN
+C       FIND THE COMPLEX VALUES OF LAME'S CONSTANTS
+C        CALL VISCOEL(Z,ZMU,ZLA,ZNU,ZC1,ZC2)
+                KZN=K
+C$$$$$$$$$$$$
+CC       NO ZONES
+C        IF(KZN.EQ.1) CALL VISCOEL(Z,ZMU,ZLA,ZNU,ZZC1,ZZC2)
+CC       YES ZONES
+C        IF(KZN.GT.1) CALL VZISCOEL(Z,ZMU,ZLA,ZNU,ZZC1,ZZC2,KZN)
+        CALL VZISCOEL(Z,ZMU,ZLA,ZNU,ZZC1,ZZC2,KZN)
+        DO 4 I=1,NOD
+        LN=KZON(K,JCL,I)
+        LDIR(I)=LN
+        XY(I,1)=XCR(LN)
+        XY(I,2)=YCR(LN)
+  4     CONTINUE
+
+
+
+C       FIND THE LENGTH OF THE ELEMENT WITH NODES PREVIUS,CURRENT AND NEXT
+C        NGP=6
+        NGP=NGAUS
+
+
+
+
+        CALL ELEMLEN(XY,NGP,NOD,ELEG)
+        DO 6 I=1,NOD
+        CALL CLRZRR(ZMA,49)
+        CALL CLRZRR(ZV,7)
+        CALL CLRZRR(ZW,7)
+        EKS=SPOINT(I)
+        CALL CSHAPE(EKS,NOD,XY,SHP,DSHP,RN,DETJ)
+        RQ(1)=-RN(2)
+        RQ(2)=RN(1)
+        DO 7 J=1,NOD
+        JREF=2*(LDIR(J)-1)
+        ZTR(1)=ZLOAD(JREF+1)
+        ZTR(2)=ZLOAD(JREF+2)
+cC$$$$$$$$$$$$$$$$
+cC       OPPOSITE TRACTIONS IN THE INTERFACE
+c        IF(NZTYPE(K,LDIR(J)).EQ.5) THEN
+c          ZTR(1)=-ZLOAD(JREF+1)
+c          ZTR(2)=-ZLOAD(JREF+2)
+c        ENDIF
+        ZDI(1)=ZTEMP(JREF+1)
+        ZDI(2)=ZTEMP(JREF+2)
+        ZV(2)=ZV(2)+SHP(J)*ZTR(1)
+        ZV(3)=ZV(3)+SHP(J)*ZTR(2)
+        ZV(5)=ZV(5)+DSHP(J)*ZDI(1)
+        ZV(7)=ZV(7)+DSHP(J)*ZDI(2)
+  7     CONTINUE
+C               MODIFICATION AFTER WRITTING TO MR. MANOLIS   !!!!!!!!!
+        ZV(5)=ZV(5)/(0.5D0*ELEG)
+        ZV(7)=ZV(7)/(0.5D0*ELEG)
+C       #############
+CC       ANOTHER TECHNIC OF CALCULATING THE HOOP STRESSES
+CC       CONVERT THESE STRAINS IN NORMAL AND TANGENTIAL DIRECTIONS
+C        ZUN=ZV(5)*RN1+ZV(7)*RN2
+C        ZUS=-ZV(5)*RN2+ZV(7)*RN1
+C        ZTX=ZV(2)
+C        ZTY=ZV(3)
+C       #############
+        ZMA(1,1)=DCMPLX(-1.0D0,0.0D0)
+C        ZMA(1,4)=RLA+2.0D0*RMU
+        ZMA(1,4)=ZLA+2.0D0*ZMU
+C        ZMA(1,7)=RLA
+        ZMA(1,7)=ZLA
+        ZMA(2,1)=RN(1)
+        ZMA(2,3)=RN(2)
+        ZMA(3,2)=RN(2)
+        ZMA(3,3)=RN(1)
+        ZMA(4,3)=DCMPLX(-1.0D0,0.0D0)
+        ZMA(4,5)=ZMU
+C        ZMA(4,5)=RMU
+        ZMA(4,6)=ZMU
+C        ZMA(4,6)=RMU
+        ZMA(5,4)=RQ(1)
+        ZMA(5,6)=RQ(2)
+        ZMA(6,2)=DCMPLX(-1.0D0,0.0D0)
+        ZMA(6,4)=ZLA
+C        ZMA(6,4)=RLA
+        ZMA(6,7)=ZLA+2.0D0*ZMU
+C        ZMA(6,7)=RLA+2.0D0*RMU
+        ZMA(7,5)=RQ(1)
+        ZMA(7,7)=RQ(2)
+C                         ##############################
+C                         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        CALL ZMINV(ZMA,7,LINV,MINV)
+        CALL ZVPROD(ZMA,ZV,7,ZW)
+        Z11=ZW(1)
+        Z22=ZW(2)
+        Z12=ZW(3)
+C              TRANSFORMATION IN RADIAL AND TANGENTIAL COORD.
+        ZSRR=Z11*RN(1)**2+Z22*RN(2)**2+
+     &             2*Z12*RN(1)*RN(2)
+        ZSTT=Z11*RN(2)**2+Z22*RN(1)**2-
+     &             2*Z12*RN(1)*RN(2)
+        ZSRT=(Z22-Z11)*RN(1)*RN(2)+
+     &             Z12*(RN(1)**2-RN(2)**2)
+C               ADD THE INCIDENT STRESSES (STRESSES WITHOUT THE EXISTENSE OF
+C               THE CAVITY)
+C       #############
+CC       ANOTHER TECHNIC OF CALCULATING THE HOOP STRESSES
+CC       CONVERT THESE STRAINS IN NORMAL AND TANGENTIAL DIRECTIONS
+CC       TRANSFORMATION OF THE TRACTIONS FROM THE GLOBAL SYSTEM TO LOCAL
+CC       TRACTION NORMAL TO THE SURFACE OF THE ELEMENT
+C        JREF=2*(LN2-1)
+CC        ZTX=ZLOAD(JREF+1)
+CC        ZTY=ZLOAD(JREF+2)
+C        ZTN=ZTX*RN1+ZTY*RN2
+C        ZTS=-(ZTX*RN2-ZTY*RN1)
+CC       STRESSES IN THE NORMAL(ZSN) AND TANGENTIAL(ZSS) DIRECTION, 
+CC       ZSNS IS THE SHEAR STRESS
+C        ZSN=ZTN
+C        ZSNS=ZTS
+C        ZSS=(RNU*ZSN+2*RMU*ZUS)/(1.0D0-RNU)
+C       #############
+        JREF=3*(LDIR(I)-1)
+C ATTENTION!!!!!!!!!!!!!!
+C       IN CASE OF OUTER BOUNDARY OF THE INNER ZONE, IT IS TRANSVERSED
+C       IN AN ANTI-CLOCKWISE FASHION. SO CHANGE THE I COUNTER (NODE'S
+C       CONNECTIVITY OF ELEMENT)
+        I1=I
+        LN1=KONN(JCL,I)
+        IF(NZTYPE(K,LN1).EQ.5) THEN
+          I1=NOD+1-I
+        ENDIF
+
+C        LN1=KZON(K,JCL,I)
+
+
+
+c        ZZ1(I1,JCL)=ZSRR+ZLOAD1(JREF+1)
+c        ZZ2(I1,JCL)=ZSTT+ZLOAD1(JREF+2)
+c        ZZ3(I1,JCL)=ZSRT+ZLOAD1(JREF+3)
+        ZZ1(K,I1,JCL)=ZSRR+ZLOAD1(JREF+1)
+        ZZ2(K,I1,JCL)=ZSTT+ZLOAD1(JREF+2)
+        ZZ3(K,I1,JCL)=ZSRT+ZLOAD1(JREF+3)
+
+
+
+
+
+
+
+  6     CONTINUE
+        ENDIF
+  3     CONTINUE
+  24    CONTINUE
+        RETURN
+        END
+C
+C -------------------------------------------------------------------------
+      SUBROUTINE ELEMLEN(XY,NGP,NOD,ELEG)
+C      
+C     CALCULATES THE LENGTH OF THE ELEMENT, BY GAUSSIAN INTERPOLATION
+C     NOD: 3 FOR QUADRATIC INTERPOLATION
+C          2 FOR LINEAR INTERPOLATION
+C     XY : COORDINATES OF THE NODES OF THE ELEMENT
+C     NGP: NUMBER OF POINTS FOR GAUSSIAN INTERPOLATION
+C     ELEG: RETURN VALUE OF THE LENGTH OF THE ELEMENT
+C
+      IMPLICIT COMPLEX*16 (Z)
+      IMPLICIT REAL*8 (A-H,O-Y)
+      DIMENSION XY(3,2),SHP(3),DSHP(3),RN(2)
+      COMMON/GAUSS/GPN(10,10),WTN(10,10),GPS(10,10),WTS(10,10)
+
+C
+      ELEG=0.0D0
+      DO 8 IX=1,NGP
+        EK=GPN(NGP,IX)
+        WT=WTN(NGP,IX)
+        CALL CSHAPE(EK,NOD,XY,SHP,DSHP,RN,DETJ)
+        ELEG=ELEG+DETJ*WT
+ 8    CONTINUE
+      RETURN
+      END
+C
+C -------------------------------------------------------------------------
+      SUBROUTINE VISCOEL(Z,ZMU,ZLA,ZNU,ZC1,ZC2)
+C
+C     CALCULATES THE COMPLEX 
+C     Z: LAPLACE TRANSFORM PARAMETER
+C     ZMU,ZLA: RETURN VALUE FOR THE COMPLEX VALUE OF LAME'S CONSTANTS
+      IMPLICIT COMPLEX*16 (Z)
+      IMPLICIT REAL*8 (A-H,O-Y)
+      COMMON/MATER/RLA,RMU,RNU,RHO,C1,C2,TIM,FVISC,NMODE
+C
+      TOL=1.0D-9
+      ZC1=C1
+      ZC2=C2
+C     KELVIN SOLID
+      IF(DABS(FVISC).LT.TOL) THEN
+        ZMU=RMU
+        ZLA=RLA
+        GO TO 5
+      ENDIF
+C     KELVIN SOLID
+      IF(NMODE.EQ.1) THEN 
+C        ZMU=RMU+RMU*FVISC*Z
+C        ZLA=RLA-(2.0D0/3.0D0)*RMU*FVISC*Z
+        ZMU=RMU+FVISC*Z
+        ZLA=RLA-(2.0D0/3.0D0)*FVISC*Z
+CC       TAKE THE REAL AND IMAGINERY PARTS
+C        ZMU=RMU+FVISC*Z*DCMPLX(0.0D0,1.0D0)
+C        ZLA=RLA-(2.0D0/3.0D0)*FVISC*Z*DCMPLX(0.0D0,1.0D0)
+      ENDIF
+C     MAXWELL FLUID
+      IF(NMODE.EQ.2) THEN
+        ZMU=RMU*Z/(Z+RMU/FVISC)
+        ZLA=(RLA*Z+(RMU/FVISC)*(RLA+(2.0D0/3.0D0)*RMU))/
+     &        (Z+RMU/FVISC)
+      ENDIF
+  5   CONTINUE
+      ZC1=CDSQRT((ZLA+2.0D0*ZMU)/RHO)
+      ZC2=CDSQRT(ZMU/RHO)
+      ZNU=ZLA/(2.0D0*(ZLA+ZMU))
+      RETURN
+      END
+C
+C -------------------------------------------------------------------------
+      SUBROUTINE VZISCOEL(Z,ZMU,ZLA,ZNU,ZC1,ZC2,KZN)
+C     FOR ZONES CASE:
+C     CALCULATES THE COMPLEX 
+C     Z: LAPLACE TRANSFORM PARAMETER
+C     ZMU,ZLA: RETURN VALUE FOR THE COMPLEX VALUE OF LAME'S CONSTANTS
+      IMPLICIT COMPLEX*16 (Z)
+      IMPLICIT REAL*8 (A-H,O-Y)
+C      COMMON/MATER/RLA,RMU,RNU,RHO,C1,C2,TIM,FVISC,NMODE
+C&&&&&&&&&&&&&&&&&&&&
+C     COMMON BLOCK FOR ZONES: NZONE IS THE TOTAL NUMBER OF ZONE BOUNDARIES
+C                             =0: NO ZONES, >0: ZONES ARE PRESENT
+      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,5)
+C&&&&&&&&&&&&&&&&&&&&
+      TOL=1.0D-9
+      ZC1=CZ1(KZN)
+      ZC2=CZ2(KZN)
+C     KELVIN SOLID
+      IF(DABS(FZVISC(KZN)).LT.TOL) THEN
+        ZMU=RZMU(KZN)
+        ZLA=RZLA(KZN)
+        GO TO 5
+      ENDIF
+C     KELVIN SOLID
+      IF(NZMODE(KZN).EQ.1) THEN
+C        ZMU=RMU+RMU*FVISC*Z
+C        ZLA=RLA-(2.0D0/3.0D0)*RMU*FVISC*Z
+        ZMU=RZMU(KZN)+FZVISC(KZN)*Z
+        ZLA=RZLA(KZN)-(2.0D0/3.0D0)*FZVISC(KZN)*Z
+      ENDIF
+C     MAXWELL FLUID
+      IF(NZMODE(KZN).EQ.2) THEN
+        ZMU=RZMU(KZN)*Z/(Z+RZMU(KZN)/FZVISC(KZN))
+        ZLA=(RZLA(KZN)*Z+(RZMU(KZN)/FZVISC(KZN))*(RZLA(KZN)+
+     &      (2.0D0/3.0D0)*RZMU(KZN)))/(Z+RZMU(KZN)/FZVISC(KZN))
+      ENDIF
+  5   CONTINUE
+      ZC1=CDSQRT((ZLA+2.0D0*ZMU)/RZHO(KZN))
+      ZC2=CDSQRT(ZMU/RZHO(KZN))
+      ZNU=ZLA/(2.0D0*(ZLA+ZMU))
+      RETURN
+      END
+C---------------------------------------------------------------------
+        SUBROUTINE GENRONE(NCOUNT,KONN,MBCU,ZGM,ZFM,ZLOAD,ZTEMP,
+     &           N1,N2,N3,N4,NDTYPE,LINV,MINV)
+C
+C       READING OF LOADING AND DEFORMATION OF SYSTEM MATRICES
+C
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION KONN(N3,N4),MBCU(N2)
+        DIMENSION ZGM(N2,N2),ZFM(N2,N2)
+        DIMENSION ZLOAD(N2),ZTEMP(N2)
+        DIMENSION ZKU(3,2,2),ZKT(3,2,2),DJUMP(2,2)
+        DIMENSION NDTYPE(N1)
+        DIMENSION LINV(N2),MINV(N2)
+        COMMON/CONTR/NNODE,NELEM,NP
+C                 MODIFICATION FOR VISCOELESTICITY
+        COMMON/MATER/RLA,RMU,RNU,RHO,C1,C2,TIM,FVISC,NMODE
+        COMMON/FREE/NFFS,NFRE
+      COMPLEX*16 ZTEMP1[ALLOCATABLE](:)
+      ALLOCATE(ZTEMP1(N2),STAT=IERR)
+      IF(IERR.NE.0) GO TO 988
+C       JUMP TERM FOR INFINITY
+C        DATA DJUMP/1.0D0,0.0D0,0.0D0,1.0D0/
+C       JUMP TERM FOR INFINITY
+	DJUMP(1,1)=1.0D0
+        DJUMP(2,1)=0.0D0
+        DJUMP(1,2)=0.0D0
+        DJUMP(2,2)=1.0D0
+        NN5=N2*N2
+C
+C       READ AND WRITE LOAD IN LAPLACE TRANSFORM DOMAIN
+C
+        READ(3,*) ZLOAD
+C        WRITE(6,100) NCOUNT
+C        WRITE(6,103) (ZLOAD(I),I=1,N2)
+C
+        NOD=3
+
+
+
+
+
+        GSCALE=RMU
+CC     SCALING FACTOR THE MAXIMUM MU
+C      GSCALE=0.0D0
+C      DO II=1,NZONE
+CC        GSCALE=RMU
+C        GSCALE1=RZMU(II)
+C        IF(GSCALE1.GT.GSCALE) GSCALE=GSCALE1
+C      END DO
+
+
+
+
+
+
+C
+C       SOLVE FOR UNKNOWN DISPLACEM. AND/OR LOADS-WATCH SCALING FACTOR
+C
+        DO 10 I=1,N2
+        LC=MBCU(I)
+        IF (LC .EQ. 1) GO TO 10
+        ZLOAD(I)=ZLOAD(I)/GSCALE
+  10    CONTINUE
+        CALL BOUND(ZGM,ZFM,ZLOAD,ZTEMP,ZTEMP1,MBCU,LINV,MINV,N2)
+C
+C       SORT OUT DISPLACEMENTS AND TRACTIONS-STORE IN ZTEMP,ZLOAD RESP.
+C
+        DO 11 I=1,N2
+C        ZTEMP(I)=ZLOAD(I)
+        ZTEMP(I)=ZTEMP1(I)
+  11    CONTINUE
+C        REWIND 9
+C        READ(9,*) (ZLOAD(I),I=1,N2)
+C        REWIND 9
+C
+        DO 12 I=1,N2
+        LC=MBCU(I)
+        IF (LC .EQ. 0) GO TO 19
+C
+        ZSTUMP=ZTEMP(I)
+        ZTEMP(I)=ZTEMP1(I)
+        ZTEMP1(I)=ZSTUMP*GSCALE
+        GO TO 12
+  19    CONTINUE
+        ZLOAD(I)=ZLOAD(I)*GSCALE
+  12    CONTINUE
+  13    CONTINUE
+CC
+CC       PRINTING OF TRACTIONS AND DISPLACEM. IN LAPLACE TRANSFORM DOMAIN
+CC
+C        WRITE(6,101) NCOUNT
+C        WRITE(6,103) (ZLOAD(I),I=1,N2)
+C        WRITE(6,102) NCOUNT
+C        WRITE(6,103) (ZTEMP(I),I=1,N2)
+C  100   FORMAT(//2X,' LOADING AT STEP=',I3)
+C  101   FORMAT(//2X,' TRACTIONS AT STEP=',I3)
+C  102   FORMAT(//2X,' DISPLACEMENTS AT STEP=',I3)
+C  103   FORMAT(8(2X,E12.6))
+C  110   FORMAT(//2X,' FREE FIELD CALCULATIONS (1ST STEP)')
+C  115   FORMAT(//2X,' FREE FIELD CALCULATIONS (2ND STEP)')
+C  120   FORMAT(//2X,' SCATTERED FIELD CALCULATIONS ')
+        DEALLOCATE (ZTEMP1,STAT=IERR)
+        IF(IERR.NE.0) GO TO 988
+      GO TO 999
+  988 STOP '....Not enough storage for data, aborting...'
+  999 CONTINUE
+        RETURN
+        END
+C------------------------------------------------
+        SUBROUTINE BOUND(ZGM,ZFM,ZLOAD,ZTEMP,ZTEMP1,MBCU,
+     &                   LINV,MINV,N2)
+C
+C       MATRIX RE-ARRANGEM. ACCORDING TO ROUNDARY CONDIT. AND SOLUTION
+C
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION ZGM(N2,N2),ZFM(N2,N2),ZLOAD(N2),ZTEMP(N2),MBCU(N2)
+        DIMENSION LINV(N2),MINV(N2)
+        DIMENSION ZTEMP1(N2)
+C
+C       INTERCHANGE COLUMNS OF ZGM, ZFM MATRICES
+C
+        NKA=N2
+        DO 10 J=1,NKA
+        IF (MBCU(J) .EQ. 0) GO TO 10
+        DO 11 I=1,NKA
+        ZTEMP(I)=ZFM(I,J)
+        ZFM(I,J)=-ZGM(I,J)
+        ZGM(I,J)=-ZTEMP(I)
+  11    CONTINUE
+  10    CONTINUE
+C
+C       SOLUTION FOR RESPONSE
+C
+        CALL ZVPROD(ZGM,ZLOAD,NKA,ZTEMP)
+C        N22=N2*N2
+        CALL ZMINV(ZFM,NKA,LINV,MINV)
+CC        CALL ZMINV(ZFM,NKA)
+C        CALL ZVPROD(ZFM,ZTEMP,NKA,ZLOAD)
+        CALL ZVPROD(ZFM,ZTEMP,NKA,ZTEMP1)
+        RETURN
+        END
+
+C---------------------------------------------------------------------

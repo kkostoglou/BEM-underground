@@ -1,0 +1,49 @@
+[[case]]
+name = "ch5_equal_liner"
+input = "Prev1992/ch5_3_1_1_equal_liner.dat"
+category = "Chapter 5 single-zone"
+validation = "Chapter 5 liner validation"
+
+[[case]]
+name = "ch5_stiff_liner"
+input = "Prev1992/ch5_3_1_2_stiff_liner.dat"
+category = "Chapter 5 single-zone"
+validation = "Chapter 5 liner validation"
+
+[[case]]
+name = "multizone_lined_cavity"
+input = "Prev1992/multizone_lined_cavity.dat"
+category = "Multi-zone Laplace"
+validation = "Multi-zone workflow"
+
+[[case]]
+name = "multizone_lined_cavity_time"
+input = "Prev1992/multizone_lined_cavity_time.dat"
+category = "Multi-zone time domain"
+validation = "Time-domain workflow"
+
+[[case]]
+name = "multizone_thesis_example"
+input = "Prev1992/multizone_thesis_example.dat"
+category = "Multi-zone thesis application"
+validation = "Chapter 5 thesis case"
+
+[[case]]
+name = "ch6_halfspace_plane_wave"
+input = "ch6_8_1_1_halfspace_plane_wave.dat"
+category = "Chapter 6 P wave"
+validation = "Chapter 6 wave validation"
+
+[[case]]
+name = "ch6_halfspace_plane_wave_4elem"
+input = "ch6_8_1_1_halfspace_plane_wave_4elem.dat"
+category = "Chapter 6 P wave smoke test"
+validation = "Reduced four-element regression"
+
+[[case]]
+name = "thesis_rectangular_explosion"
+input = "Prev1992/THESIS_RECT_EXPLOSION.DAT"
+category = "Chapter 2 point explosion"
+phd_section = "2.3.2.2"
+figures = ["2.40", "2.41", "2.42", "2.43"]
+validation = "PhD rectangular cavity comparison"

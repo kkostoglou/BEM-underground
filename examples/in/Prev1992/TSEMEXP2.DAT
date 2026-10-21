@@ -1,0 +1,27 @@
+TITLE
+2D,L.D.,simi-infinity,circle,explosion point P wave, with decay
+TYPE.PROBLEM
+DOMAIN ANALYSIS 
+   2      1 
+SECTION.TYPE
+BOUNDARIES
+    2
+SHAPE REGION ELEMENTS GEOMETRY
+  1     1       8      2.5
+ -1     4       8      16.0 5.0 -16.0 5.0
+MATERIAL.PROPERTIES
+  E       NU    RO
+20000.0  0.25  2.55
+STEP.NUMBER
+   20
+TIME.TOTAL
+  0.015
+LOAD.STRESSES
+EXPLOSION.POINT
+XE   YE  W     N    F   DECAY 
+8.0 0.0 188.7 2.75 1.0    1  
+PLOTS
+ 2 5 12 21 22 28 29 30
+NODE.PLOTS
+ 1 2 4 9 15
+END

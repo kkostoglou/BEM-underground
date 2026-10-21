@@ -1,0 +1,31 @@
+# Local Python environments and build products
+.conda-env/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+/build/
+/dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+.aws/
+.codex/
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
+# Generated results (keep directory guidance)
+/examples/results/*
+!/examples/results/README.md
+!/examples/results/npz/
+/examples/results/npz/*
+!/examples/results/npz/.gitkeep
+/github-upload/

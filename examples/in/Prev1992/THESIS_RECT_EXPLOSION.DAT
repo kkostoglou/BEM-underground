@@ -1,0 +1,27 @@
+TITLE
+PhD Figures 2.40-2.43 reproduction, rectangle P wave at (10,0), with decay
+* Separate thesis case; archived IFEXRE44 remains an SV-only case at (10,0).
+* Grading follows the printed coordinates in Figures 2.16 and 2.43.
+* Source (10,0) reproduces the figures; thesis prose states (8,0), which does not.
+TYPE.PROBLEM
+DOMAIN ANALYSIS
+1 1
+SECTION.TYPE
+SHAPE ELEMENTS YELEMENTS GEOMETRY
+3 11 9 6.0 4.0 0.0 0.0 0.0 0.0 -3.0 2
+MATERIAL.PROPERTIES
+E NU RO
+20000 0.25 2.55
+STEP.NUMBER
+20
+TIME.TOTAL
+0.015
+LOAD.STRESSES
+EXPLOSION.POINT
+XE YE W N F DECAY SV P
+10.0 0.0 188.7 2.75 1.0 1 0.0 1.0
+PLOTS
+2 5 12 21 22 26 28 29 30
+NODE.PLOTS
+68 70 71 72 84 73 74
+END

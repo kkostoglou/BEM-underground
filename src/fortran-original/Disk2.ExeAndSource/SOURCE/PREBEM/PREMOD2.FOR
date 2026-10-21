@@ -1,0 +1,801 @@
+C ----------------------------------------------------------------
+      SUBROUTINE STEPMOD(JP1,N8,MBD)
+C
+C ----------------------------------------------------------------
+C  MODULE : STEP, READ THE NUMBER OF THE TIME STEPS, 
+C                 AND THE COEFFICINTS JP1 FOR FFT
+C                   DEFAULT VALUE NSTEP=20
+C                   JP1=2,2,5
+C ----------------------------------------------------------------
+C      PARAMETER(MST=200,MND=100,MEL=50,MBD=5,MPL=10,MZN=5,MDM=2)
+      COMMON/BLKEX/IEXIT
+      COMMON/PROBL/NDOMA,NREGI,NUNIT
+      COMMON/CONTR/NNODE,NELEM,NSTEP,NHOOP
+      DIMENSION JP1(N8)
+C     CHANGING MBD IN MAIN PROGRAM, NUMBER 5 MUST BE CHANGED TO NBD ALSO
+      DIMENSION NREGI(5)
+C
+C     READ THE STEP.NUMBER                            [NSTEP]
+      K0=0
+      CALL READER(DUMMY,NS11,IREAD,0,K0)
+      NSTEP=NS11
+C     FOR LAPLACE TRANSFORM DOMAIN, OR FREQUENCY DOMAIN
+C     READ 3 MORE NUMBERS IN THE SAME LINE
+      IF((NDOMA.EQ.1).OR.(NDOMA.EQ.4))THEN
+        DO 984 J=1,3
+          JP1(J)=0.0
+C         READ JP1                                   [JP1(J)]
+          CALL READER(DUMMY,JP11,IREAD,0,K0)
+          JP1(J)=JP11
+  984   CONTINUE
+C       IF JP1 NOT FOUND, GIVE VALUES AUTOMATICALLY TO JP1
+        IF ((JP1(1).EQ.0).AND.(JP1(2).EQ.0).AND.(JP1(3).EQ.0)) 
+     &      CALL VALJP1(JP1,N8)
+      ENDIF
+      WRITE(6,306)NSTEP
+  306 FORMAT('STEP.NUMBER',/,I3)
+      RETURN
+      END
+C
+C ----------------------------------------------------------------
+      SUBROUTINE HOOPMOD(SKEYW,NHPOS,MEL)
+C
+C ----------------------------------------------------------------
+C  MODULE : HOOP, READ THE NUMBER OF BOUNDARY STRESSES TO PRINTED OUT.
+C                 IT MUST BE : NHOOP<= 3*NELEM, FOR TIME DOMAIN AND  LAPLACE
+C                              DOMAIN (THE STRESS IN THE LOGITUDINAL
+C                              DIRECTION ARE CALCULATED TOO)
+C           THIS MODULUS IS NOT NECECERY. DEFAULT VALUE OF NHOOP=TOTAL 
+C           NUMBER OF NODES (NNODE)
+C ----------------------------------------------------------------
+      COMMON/BLKEX/IEXIT
+      COMMON/CONTR/NNODE,NELEM,NSTEP,NHOOP
+      DIMENSION SKEYW(59)
+      CHARACTER SKEYW*4
+      DIMENSION SUBTITL(10)
+      CHARACTER SUBTITL*4
+      DIMENSION NHPOS(MEL)
+C
+C     READ THE HOOP.STRESSES                   
+      CALL READTITL(SUBTITL,NT)
+      WRITE(6,410)
+  410 FORMAT('HOOP.STRESSES')
+      K0=0
+      DO 860 J=1,NT
+C        SUBMODULUS TOTA
+        IF (SUBTITL(J).EQ.SKEYW(12)) THEN
+C         READ THE TOTAL.POINTS                [NHOOP]
+          CALL READER(DUMMY,NH11,IREAD,0,K0)
+          NHOOP=NH11
+          KAN=3*NELEM
+          IF (NHOOP.GT.KAN) THEN
+            WRITE(6,514)NHOOP
+            IEXIT=1
+          ENDIF
+          WRITE(6,374)NHOOP
+  374     FORMAT('TOTAL.POINTS......',I3)
+        ENDIF
+C       SUBMODULUS POSI
+        IF (SUBTITL(J).EQ.SKEYW(13)) THEN
+C         READ THE POSITION.ELEMENTS              [NHPOS(K)]
+          DO 862 K=1,NHOOP
+            CALL READER(DUMMY,NHPOS(K),IREAD,0,K0)
+            IF (NHPOS(K).GT.NELEM) THEN
+              WRITE(6,552)NHPOS(K),NELEM
+              IEXIT=1
+            ENDIF
+  862     CONTINUE
+          WRITE(6,376)
+  376     FORMAT('POSITION.ELEMENTS.')
+          DO 888 K=1,NHOOP
+            WRITE(6,378)NHPOS(K)
+  888     CONTINUE
+  378     FORMAT(I3)
+        ENDIF
+  860 CONTINUE
+ 514  FORMAT(/,10X,'  ERROR - THE NUMBER OF BOUNDARY STRESSES FOR ',
+     &                       ' PRINTOUT : ',I3,
+     &       /,10X,'          IS BIGER THAN THE TOTAL NUMBER OF'
+     &       /,10X,'          RADIAL AND TANGENTIAL STRESSES ') 
+ 552  FORMAT(/,10X,'  ERROR - THE NUMBER IN SUBMODULUS POSITION.
+     &ELEMENTS ',I3, 
+     &   /,10X,'  MUST BE LOWER THAN TOTAL NUMBER OF ELEMENTS',I3)
+      RETURN
+      END
+C
+C ---------------------------------------------------------------------
+      SUBROUTINE PRESMOD(SKEYW,MMBCU,MND,MDM)
+C ---------------------------------------------------------------------
+C   MODULE: PRES, READ THE PRESCRIBED BOUNDARY CONDITIONS
+C     MMBCU  : RETURN VALUE OF THE ARRAY THAT HOLDS THE BOUNDARY CONDITIONS
+C              OF THE NODES
+C     NTOTA  :NUMBER OF NODES THAT WE WANT TO PRESCRIBE DISPLACEMENT CONDITIONS
+C           IF NTOTA=0, OR IF WE DON'T PUT THE MODULE BCOND AT ALL THEN WE HAVE
+C           ALL-TRACTION PRESCRIBED, IT MEANS THAT ALL MBCU=0
+C     NPOSI :NODE NUMBER
+C     NAXIS:AXIS NUMBER, 1:X-AXIS, 2:Y-AXIS  (2-D PROBLEM)
+C     NCOND :BOUNDARY CONDITION, 0 OR 1
+C                    0: PRESCRIBED TRACTION
+C                    1:   -//-     DISPLACEMENT
+C     FOR ALL THE OTHER NODES THAT WE DON'T DETERMINE, MBCU IS 0.
+C ---------------------------------------------------------------------- 
+C      READ THE SECOND TITLE TOTA, POSI, AXIS, COND
+C      THE TOTAL.NODES IS MORE CONVINIENT TO BE IN A LIN ALONE
+C      BUT THEY CAN BE IN THE SAME LINE ALL TOGETHER.
+C      READ THE ONE TITLE OR ALL THE TITLES:
+C           IF THE RETURN VALUE OF NT=1 THEN THERE IS ONLY ONE TITLE
+C                             OTHERWISE MORE TITLES
+      COMMON/BLKEX/IEXIT
+      COMMON/CONTR/NNODE,NELEM,NSTEP,NHOOP
+      DIMENSION SUBTITL(10)
+      CHARACTER SUBTITL*4
+      DIMENSION SKEYW(59)
+      CHARACTER SKEYW*4
+      DIMENSION MMBCU(MND*MDM)
+C
+      CALL READTITL(SUBTITL,NT)
+      WRITE(6,323)  
+  323 FORMAT('PRESCRIBED.CONDITIONS')
+      K0=0
+      I1=2
+      IF (SUBTITL(1).EQ.SKEYW(12)) THEN
+C       READ THE TOTAL.NODES                 [NTOTA]
+        CALL READER(DUMMY,NTOTA,IREAD,0,K0)
+        WRITE(6,395)NTOTA
+  395   FORMAT('TOTAL.NODES.........',I3)
+        IF (NTOTA.EQ.0) GO TO 925
+      ENDIF
+C     NBD MUST BE <=2*NNODE (2-D PROBLEM)
+      IF (NTOTA.GT.2*NNODE) THEN
+        WRITE(6,536)NTOTA
+        IEXIT=1
+      ENDIF
+C     IF THE POSITION.NODE, AXIS.NUMBER, CONDITION.CODE ARE IN THE
+C     NEXT LINE OF THE FILE, THEN READ THE SECOND ROW OF TITLES
+      IF (NT.GT.1) THEN
+        CALL READTITL(SUBTITL,NT)
+        I1=1
+      ENDIF
+      DO 920 IK=1,NTOTA
+        DO 818 J=I1,NT
+          IF (SUBTITL(J).EQ.SKEYW(13)) THEN
+C         READ THE POSITION.NODE                 [NPOSI]
+            CALL READER(DUMMY,NPOSI,IREAD,0,K0)
+            WRITE(6,396)NPOSI
+  396       FORMAT('POSITION.NODE.....',I3)                          
+            IF (NPOSI.GT.2*NNODE) THEN 
+              WRITE(6,538)
+              IEXIT=1
+            ENDIF
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(20)) THEN
+C         READ THE AXIS.NUMBER                   [NAXIS]
+            CALL READER(DUMMY,NAXIS,IREAD,0,K0)
+            WRITE(6,397)NPOSI
+  397       FORMAT('AXIS.NUMBER.......',I3)
+            IF (NAXIS.GT.2) THEN 
+              WRITE(6,540)
+              IEXIT=1
+            ENDIF
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(21)) THEN
+C         READ THE CONDITION.CODE               [NCOND]
+            CALL READER(DUMMY,NCOND,IREAD,0,K0)
+            WRITE(6,398)NCOND
+  398       FORMAT('CONDITION.CODE.....',I3)
+            IF (NCOND.GT.1) THEN 
+              WRITE(6,542)
+              IEXIT=1
+            ENDIF
+            JREF=2*(NPOSI-1)
+            MMBCU(JREF+1)=NCOND
+          ENDIF
+  818   CONTINUE
+  920 CONTINUE
+  925 CONTINUE
+ 500  FORMAT(/,10X,'  ERROR - NEGATIVE VALUE ',I4,
+     &             ' NOT PERMITED')
+ 536  FORMAT(/,10X,'  ERROR - THE NUMBER OF TOTAL NODES TOTAL.NODES  
+     &                WITH BOUNDARY CONDITIONS = ',I3,
+     &       /,10X,'  MUST BE  <= 2*NNODE')
+ 538  FORMAT(/,10X,'  ERROR - THE NUMBER OF POSITION.NODE =',I3, 
+     &       /,10X,'  MUST BE  <= 2*NNODE')
+ 540  FORMAT(/,10X,'  ERROR - THE NUMBER OF AXIS.NUMBER =',I3, 
+     &       /,10X,'  MUST BE  <= 2')
+ 542  FORMAT(/,10X,'  ERROR - THE NUMBER OF CONDITION.CODE =',I3, 
+     &       /,10X,'  MUST BE  0 OR 1')
+      RETURN
+      END
+C
+C -------------------------------------------------------------------------
+      SUBROUTINE LOADMOD(SKEYW,RANGL,RSTRE,RNSTRE,RNORM,
+     &  RPX,RPY,LWAV,KEXPL,KSURF,PSURFX,PSURFY,KTRAC,TRACX,TRACY,
+     &  NBOUN,MBD,MEL,MND)
+C -------------------------------------------------------------------------
+C  PLANE.WAVE
+C  MODULE: LOAD, READ THE STRESS COMPONENTS OF A PRESSURE WAVE, THAT
+C                 IS SUDDENLY APPLIED AND MAINTAINED AT A ZERO DISTANCE 
+C                 FROM THE BOUNDARY, (NODE 1 FOR CIRCLE, SQUARE OR RECTANGLE 
+C                 AND ANY OTHER NUMBER FOR ANY SECTION).
+C                 WE HAVE AN INCIDENT DILATATIONAL (P) WAVE WITH STRESS RSTRE
+C                 IN X DIRECTION, THAT GENERATES A SHEAR (S) WAVE EQUAL TO
+C                 RNORM=RSTRE*RRNU/(1-RRNU).
+C                 THE STRESSES ARE
+C                 - : COMPRESSINAL WAVE
+C
+C        RETURNED VALUES:
+C           RANGL: ANGLE (IN RAD(IB)) OF THE AXIS OF INCIDENT WAVE WITH X-AXIS
+C                  POSITIVE IN ANTI-CLOCKWISE DIRECTION, FROM 0<=RANGL<2*PI
+C                  0: AXIS OF INCIDENT WAVE(DIRECTION OF P STRESS), IS 
+C                     IDENTICAL TO X AXIS
+C                  PI/2: Y AXIS
+C                  PI:  -X AXIS
+C                  3*PI/2: -Y AXIS
+C           RPX,RPY: POSITION OF THE WAVEFRONT, THAT FIRST ARRIVES (STARTING
+C                  POINT AT TIME=0). IF IT IS NOT GIVEN, THEN THE PROGRAM 
+C                  AUTOMATICALLY CALCULATES THE POSITION (NEAREST TO THE NODE
+C                  THAT FIRST ENCOUNTERS)
+C  EXPLOSIONS
+C          NFORM : TYPE OF FORMULA USED. THIS IS NOT NECESSERY, IF NOT FOUND
+C                  IS TAKEN 1
+C                      1: QUBIC ROOT FORMULA
+C                      2: SQUARE ROOT FORMULA
+C                      3: OTHER TYPE FORMULA
+C          RXE,RYE: COORDINATES OF THE CENTER OF EXPLOSION IN THE GLOBAL 
+C                  COORDINATE SYSTEM. 
+C                  EXPLX,EXPLY: ARE THE DOUBLE PRESICION VALUES
+C                            UNITS    (M) OR (FT)
+C          RW:     CHARGE WEIGHT OF THE EXPLOSIVE.
+C                  EXPLW: THE DOUBLE PRESICION VALUE
+C                            UNITS (NEWTONS) OR (LBS)
+C          RB:     EMPIRICAL COEFFICIENT OF THE FORMULA. THIS IS NOT NECESSERY.
+C                  IF NOT FOUND IS TAKEN
+C                      160 FOR NFORM=1
+C                        2 FOR NFORM=2
+C                      1.4 FOR NFORM=3
+C                  THE COEFFICIENT B IS TRANSFORMED BY THE EXPRESSIONS
+C                      RBT=RB*0.3048**(RN+1)/4.4482**(RN/2)
+C                      RBT=RB*0.3048**(RN+1)/4.4482**(RN/3)
+C                      RBT=RB*9.8066**RN1
+C          RF:     COUPLING FACTOR, CLEAR NUMBER
+C                  THIS IS NOT NECESSARY. THE DEFAULT VALUE GIVEN BY THE 
+C                  PROGRAM IS 1.0
+C          RN:     COEFFICIENT, CLEAR NUMBER
+C                  DEFAULT VANUE
+C                      2.75 FOR NFORM=1
+C                      1.57 FOR NFORM=2
+C                      0.70 FOR NFORM=3
+C          RN1:    COEFFICIENT ONLY FOR NFORM=3 CLEAR NUMBER. 
+C                  THIS IS NOT NECESSARY. THE DEFAULT VALUE GIVEN BY THE 
+C                  PROGRAM IS:
+C                      1.50 FOR NFORM=3
+C
+C          NDECAY: INDEX FOR THE DECAY OF THE STRESS WAVE WITH TIME
+C                  THIS IS NOT NECESSERY. THE DEFAULT CASE IS 1, WITH DECAY
+C                  0: NO DECAY WITH TIME,  P=P0
+C                  1: DECAY WITH TIME,  P=P0*E**-T/TA, 
+C                         TA: ARRIVAL TIME OF THE WAVE
+C
+C           KEXPL: INDEX, RETURN VALUE
+C                    1: EXPLOSION.POINT SUBMODULUS FOUND
+C                    0:     -//-            -//-   NOT FOUND
+C                  
+C           RSTRE : AXIAL INCIDENT STRESS, AT NODE 1, AT TIME 0
+C           RNSTRE: VERTICAL INCIDENT STRESS, AT NODE 1, AT TIME 0
+C           RNORM : SHEAR INCIDENT STRESS, AT NODE 1, AT TIME 0
+C -------------------------------------------------------------------------
+      COMMON/BLKEX/IEXIT
+      COMMON/CONTR/NNODE,NELEM,NSTEP,NHOOP
+      COMMON/EXPL/EXPLX,EXPLY,EXPLW,EXPLB,EXPLF,EXPLN,
+     &            EXPLN1,EXPLP,EXPLSV,NFORM,NDECAY
+      COMMON/PROBL/NDOMA,NREGI,NUNIT
+      COMMON/PRESS/KINSI,PINSI
+      COMMON/FREQ/OFREQ
+      DIMENSION SUBTITL(10)
+C     CHANGING MBD IN MAIN PROGRAM, NUMBER 5 MUST BE CHANGED TO NBD ALSO
+      DIMENSION NREGI(5)
+      DIMENSION PINSI(5)
+      DIMENSION PSURFX(MEL),PSURFY(MEL)
+      DIMENSION TRACX(MND),TRACY(MND)
+      CHARACTER SUBTITL*4
+      DIMENSION SKEYW(59)
+      CHARACTER SKEYW*4
+      REAL*8 EXPLX,EXPLY,EXPLW,EXPLB,EXPLF,EXPLN,EXPLN1,EXPLP,EXPLSV
+      REAL*8 PINSI
+      REAL*8 OFREQ
+      REAL*8 PSURFX,PSURFY
+      REAL*8 TRACX,TRACY
+      PI=3.14159265359D0
+      TOL=1.0E-11
+      TOL1=1.0E-6
+      KEXPL=0
+C     INITIAL VALUES
+      EXPLB=0.0D0
+      EXPLN=0.0D0
+      EXPLN1=0.0D0
+C     DEFAULT VALUES
+      NFORM=1
+      EXPLF=1.0D0
+      NDECAY=1
+      WRITE(6,399)
+  399 FORMAT('LOADS')
+C     READ THE SECOND TITLE
+      CALL READTITL(SUBTITL,NT)
+C     PLANE.WAVE - HARMONIC.WAVE
+C     ==========================
+C     CASE FOUND THE SUBMODULUS PLANE.WAVE OR HARMONIC.WAVE
+      IF((SUBTITL(1).EQ.SKEYW(36)).OR.(SUBTITL(1).EQ.SKEYW(49)))THEN
+C       READ THE SECOND TITLE LONG (HARM),VERT,TRAN,ANGL,XDIS,YDIS
+        CALL READTITL(SUBTITL,NT)
+	K0=0
+        DO 816 J=1,NT
+C         IN HARMONIC WAVE CASE, READ THE FREQUENCY
+          IF (SUBTITL(J).EQ.SKEYW(50)) THEN
+C           READ THE FREQUENCY                         [RFREQ]
+            CALL READER(RFREQ,IDUMMY,IREAD,1,K0)
+            WRITE(6,325)RFREQ
+            OFREQ=RFREQ
+  325       FORMAT('FREQUENCY.........',F12.3)
+            IF (RFREQ.LT.0.0) THEN
+              WRITE(6,500)
+              IEXIT=1
+            ENDIF
+            IF (NDOMA.NE.4) THEN
+              WRITE(6,502)
+              IEXIT=1
+            ENDIF
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(24)) THEN
+C           READ THE ANGLE                            [RANGL]
+            CALL READER(RANGL,IDUMMY,IREAD,1,K0)
+            WRITE(6,332)RANGL
+  332       FORMAT('ANGLE.............',F12.3,' DEG')
+C           CONVERT THE DEGREES IN RADIANS
+            RANGL=RANGL*PI/180.0
+            IF (RANGL.GE.2*PI) THEN 
+              WRITE(6,544)
+              IEXIT=1
+            ENDIF
+            IF (RANGL.LT.0.0) THEN
+              WRITE(6,500)
+              IEXIT=1
+            ENDIF 
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(22)) THEN
+C           READ THE LONGITUDINAL.STRESS               [RSTRE]
+C           P-WAVE
+            CALL READER(RSTRE,IDUMMY,IREAD,1,K0)
+            WRITE(6,326)RSTRE
+  326       FORMAT('LONGITUDINAL.STRESS.',F12.3)
+C            IF (I.EQ.1) KAX=2
+C            IF (I.EQ.2) KAX=1
+C            RNSTRE1=RSTRE*RPOIS/(1.0D0-RPOIS)
+C            WRITE(6,328)RNSTRE
+C  328       FORMAT('SP*N/(1-N).........',F12.3)
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(35)) THEN
+C           READ THE VERTICAL.STRESS                   [RNSTRE]
+C           P-WAVE AGAIN
+            CALL READER(RNSTRE,IDUMMY,IREAD,1,K0)
+            WRITE(6,350)RNSTRE
+  350       FORMAT('VERTICAL.STRESS.',F12.3)
+C            IF (I.EQ.1) KAX=2
+C            IF (I.EQ.2) KAX=1
+C            RSTRE1=RNSTRE*RPOIS/(1.0D0-RPOIS)
+C            WRITE(6,352)RNSTRE
+C  352       FORMAT('SP*N/(1-N).........',F12.3)
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(23)) THEN
+C           READ THE TRANSVERSE.SHEAR                  [RNORM]
+C           SV-WAVE
+            CALL READER(RNORM,IDUMMY,IREAD,1,K0)
+            WRITE(6,330)RNORM
+  330       FORMAT('TRANSVERSE.SHEAR..',F12.3)
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(33)) THEN
+C           READ RPX                                    [RPX]
+            CALL READER(RPX,IDUMMY,IREAD,1,K0)   
+C           INDICATION THAT THE SUBMODULUS FOUND (USED LATER, BEFORE 
+C           CALLING WAVEFIR)
+            LWAV=1
+            WRITE(6,346)RPX
+  346         FORMAT('XDISTANCE.......',F12.3)
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(34)) THEN
+C           READ PY                                     [RPY]
+            CALL READER(RPY,IDUMMY,IREAD,1,K0)  
+C           INDICATION THAT THE SUBMODULUS FOUND (USED LATER, BEFORE 
+C           CALLING WAVEFIR)
+            LWAV=1     
+            WRITE(6,348)RPY
+  348       FORMAT('YDISTANCE.........',F12.3)
+          ENDIF 
+  816   CONTINUE
+C       IN CASE OF IMPERIAL SYSTEM, CONVERT THE LENGHTS FROM (FT) TO (M)
+C       THE STRESSES FROM (PSI) TO MPA
+        IF(NUNIT.EQ.2) THEN
+          RSTRE=RSTRE*6.895/1000.0
+          RNSTRE=RNSTRE*6.895/1000.0
+          RNORM=RNORM*6.895/1000.0
+          RPX=RPX*0.3048
+          RPY=RPY*0.3048
+        ENDIF
+      ENDIF
+C     EXPLOSION.POINT
+C     ===============
+C     CASE FOUND THE SUBMODULUS  EXPLOSION.POINT
+      IF(SUBTITL(1).EQ.SKEYW(37))THEN
+C       INDEX THAT THE SUBMODULUS FOUND
+        KEXPL=1         
+          WRITE(6,402)
+  402     FORMAT('EXPLOSION.POINT....')
+C       READ THE SECOND TITLE XE YE W B F N N1 DECAY SV
+        CALL READTITL(SUBTITL,NT)
+        K0=0
+        DO 916 J=1,NT
+          IF (SUBTITL(J).EQ.SKEYW(47)) THEN
+C           READ THE FORMULA TYPE                            [NFORM]
+            CALL READER(DUMMY,NF11,IREAD,0,K0)
+            NFORM=NF11
+            WRITE(6,447)NFORM
+  447       FORMAT('FORMULA............',I3)                         
+            IF (NFORM.GT.3) THEN 
+              WRITE(6,568)
+              IEXIT=1
+            ENDIF
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(38)) THEN
+C           READ THE HORIZONTAL COORDINATE OF THE CENTER OF
+C           THE EXPLOSION POINT XE                            [RXE]
+            CALL READER(RXE,IDUMMY,IREAD,1,K0)
+            WRITE(6,432)RXE
+  432       FORMAT('XE................',F12.3)
+C           CONVERT TO DOUBLE PRECISION
+            EXPLX=RXE
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(39)) THEN
+C           READ THE VERTICAL COORDINATE OF THE CENTER OF
+C           THE EXPLOSION POINT YE                            [RYE]
+            CALL READER(RYE,IDUMMY,IREAD,1,K0)
+            WRITE(6,434)RYE
+  434       FORMAT('YE................',F12.3)
+            EXPLY=RYE
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(40)) THEN
+C           READ THE CHARGE WEIGHT OF THE EXPLOSIVE  W        [RW]
+            CALL READER(RW,IDUMMY,IREAD,1,K0)
+            WRITE(6,450)RW
+  450       FORMAT('W.................',F12.3)
+            IF(RW.LT.0.0) THEN
+              WRITE(6,510)RW
+              IEXIT=1
+            ENDIF
+            EXPLW=RW
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(41)) THEN
+C           READ THE COEFFICIENT N                            [RN]
+            CALL READER(RN,IDUMMY,IREAD,1,K0)
+            WRITE(6,430)RN
+  430       FORMAT('N.................',F12.3)
+            IF(RN.LT.0.0) THEN
+              WRITE(6,510)RN
+              IEXIT=1
+            ENDIF
+            EXPLN=RN
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(46)) THEN
+C           READ THE COEFFICIENT N1                           [RN1]
+            CALL READER(RN1,IDUMMY,IREAD,1,K0)
+            WRITE(6,443)RN1
+  443       FORMAT('N1................',F12.3)
+            IF(RN1.LT.0.0) THEN
+              WRITE(6,510)RN1
+              IEXIT=1
+            ENDIF
+            EXPLN1=RN1
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(45)) THEN
+C           READ THE EMPIRICAL COEFFICIENT B                  [RB]
+            CALL READER(RB,IDUMMY,IREAD,1,K0)
+            WRITE(6,445)RB
+  445       FORMAT('B.................',F12.3)
+            IF(RB.LT.0.0) THEN
+              WRITE(6,510)RB
+              IEXIT=1
+            ENDIF
+            EXPLB=RB
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(42)) THEN
+C           READ THE COUPLING FACTOR F                        [RF]
+            CALL READER(RF,IDUMMY,IREAD,1,K0)    
+            WRITE(6,448)RF
+  448       FORMAT('F.................',F12.3)
+            IF(RF.LT.0.0) THEN
+              WRITE(6,510)RF
+              IEXIT=1
+            ENDIF
+            EXPLF=RF
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(44)) THEN
+C           READ THE DECAY INDEX                             [NDECAY]
+            CALL READER(DUMMY,NDEC11,IREAD,0,K0)
+            NDECAY=NDEC11
+            WRITE(6,452)NDECAY
+  452       FORMAT('DECAY.............',I3)                         
+            IF (NDECAY.GT.1) THEN 
+              WRITE(6,566)
+              IEXIT=1
+            ENDIF
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(19)) THEN
+C           READ THE INDICATION OF SV WAVE                   [SV]
+            CALL READER(RSV,IDUMMY,IREAD,1,K0)    
+            WRITE(6,449)RSV
+  449       FORMAT('SV................',F12.3)
+            IF(RSV.LT.0.0) THEN
+              WRITE(6,510)RSV
+              IEXIT=1
+            ENDIF
+            EXPLSV=RSV
+          ENDIF
+          IF (SUBTITL(J).EQ.SKEYW(18)) THEN
+C           READ THE INDICATION OF P WAVE                   [P]
+            CALL READER(RP,IDUMMY,IREAD,1,K0)    
+            WRITE(6,451)RP
+  451       FORMAT('P.................',F12.3)
+            IF(RP.LT.0.0) THEN
+              WRITE(6,510)RP
+              IEXIT=1
+            ENDIF
+            EXPLP=RP
+          ENDIF
+  916   CONTINUE
+C       DEFAULT VALUES
+        IF(EXPLB.LT.TOL1) THEN
+          IF(NFORM.EQ.1) EXPLB=160.0D0
+          IF(NFORM.EQ.2) EXPLB=2.0D0
+          IF(NFORM.EQ.3) EXPLB=1.4D0
+        ENDIF
+        IF(EXPLN.LT.TOL1) THEN
+          IF(NFORM.EQ.1) EXPLN=2.75D0
+          IF(NFORM.EQ.2) EXPLN=1.57D0
+          IF(NFORM.EQ.3) EXPLN=0.70D0
+        ENDIF
+        IF(EXPLN.LT.TOL1) THEN
+          IF(NFORM.EQ.3) EXPLN=1.50D0
+        ENDIF
+C       IN CASE OF SI SYSTEM, CONVERT THE CHARGE WEIGHT OF THE EXPLOSIVE W
+C       FROM KGF (FORCE) TO NEWTONS (N)
+        IF(NUNIT.EQ.1) THEN
+          EXPLW=EXPLW*9.8066D0
+        ENDIF
+C       IN CASE OF IMPERIAL SYSTEM, CONVERT 
+C       THE CHARGE  FROM [LBF] (FORCE) TO [N]
+C       THE LENGTHS FROM [F] TO [M]
+        IF(NUNIT.EQ.2) THEN
+          EXPLW=EXPLW*4.4482D0
+          EXPLX=EXPLX*0.3048D0
+          EXPLY=EXPLY*0.3048D0
+        ENDIF
+C       ALL THE QUANTITIES IN THIS MODULUS HAVE BEEN CONVERTED IN THE
+C       SI SYSTEM AND ARE
+C         EXPLW : NEWTONS
+C         EXPLX : M
+C         EXPLY : M
+C         THE ACCOUSTIC IMPEDANCE ALSO, WIL BE CALCULATED FROM THE
+C         GIVEN VALUES IN MODULUS MATERIAL.PROPERTIES, WHERE ALSO
+C         THE UNITS HAVE BEEN MODIFIED TO SI SYSTEM
+C         SO P*C  [MPA*S**2/M**2]*[M/S]=[MPA*S/M], NEEDED IN THE 
+C         EXPLOSIVE EXPRESSION
+C       CALCULATION OF THE COEFFICIENT B, AS FUNCTION OF N
+C       SI (INTERNATIONAL SYSTEM) UNITS IN THE EXPLOSION EXPRESSION
+C       CASE OF QUBIC ROOT FORMULA
+        IF(NFORM.EQ.1) THEN
+          EXPLB=EXPLB*((0.3048D0)**(EXPLN+1))/
+     &                ((4.4482D0)**(EXPLN/3.0D0))
+        ENDIF
+C       CASE OF SQUARE ROOT FORMULA
+        IF(NFORM.EQ.2) THEN
+          EXPLB=EXPLB*((0.3048D0)**(EXPLN+1))/
+     &                  ((4.4482D0)**(EXPLN/2.0D0))
+        ENDIF
+C       CASE OF OTHER TYPE FORMULA
+        IF(NFORM.EQ.3) THEN
+          EXPLB=EXPLB*9.8066D0*RN
+        ENDIF
+      ENDIF
+C     INSIDE.PRESSURE
+C     ===============
+C     CASE FOUND THE SUBMODULUS INSIDE.PRESSURE
+      IF(SUBTITL(1).EQ.SKEYW(48)) THEN
+C	INDEX THAT THE SUBMODULUS FOUND
+	KINSI=1
+C	READ THE NUMBER OF TOTAL BOUNDARIES		 [NTIN]
+	K0=0
+	CALL READER(DUMMY,NTIN,IREAD,0,K0)
+	IF (NTIN.GT.NBOUN) THEN
+	  WRITE(6,570)
+	  IEXIT=1
+	ENDIF
+	WRITE(6,454)NTIN
+  454	FORMAT('INSIDE.PRESSURE....',I3)
+C	READ THE SECOND TITLE BOUN,PRES
+	CALL READTITL(SUBTITL,NT)
+C	LOOP FOR THE TOTAL NUMBER OF BOUNDARIES
+	DO I=1,NTIN
+	  K0=0
+	  IREAD=0
+	  DO 846 J=1,NT
+	    IF (SUBTITL(J).EQ.SKEYW(27)) THEN	   !BOUN
+C	      READ THE NUMBER OF BOUNDARY		 [NINSI]
+	      CALL READER(DUMMY,NINSI,IREAD,0,K0)
+	      WRITE(6,456)NINSI
+  456	      FORMAT('BOUNDARY..........',I3)
+	    ENDIF
+	    IF (SUBTITL(J).EQ.SKEYW(14)) THEN	   !INSI
+C	      READ THE INSIDE PRESSURE			 [RIN]
+	      CALL READER(RIN,IDUMMY,IREAD,1,K0)
+	      WRITE(6,458)RIN
+  458         FORMAT('INSIDE.PRESSURE...',F12.3)
+              PINSI(NINSI)=RIN
+
+C             IN CASE OF IMPERIAL SYSTEM, CONVERT THE PRESSURE
+C             FROM (psi) TO (MPa)
+              IF(NUNIT.EQ.2) PINSI(NINSI)=PINSI(NINSI)*6.895/1000.0
+            ENDIF
+  846	  CONTINUE
+	END DO
+      ENDIF
+C     SURFACE.PRESSURE
+C     ================
+C     CASE FOUND THE SUBMODULUS SURFACE.PRESSURE
+      IF(SUBTITL(1).EQ.SKEYW(53)) THEN
+C	INDEX THAT THE SUBMODULUS FOUND
+        KSURF=1
+C       READ THE NUMBER OF TOTAL PRESSURE CASES            [NSURF]
+	K0=0
+        CALL READER(DUMMY,NSURF,IREAD,0,K0)
+        IF (NSURF.GT.MEL) THEN
+          WRITE(6,572)
+	  IEXIT=1
+	ENDIF
+        WRITE(6,460)NSURF
+  460   FORMAT('SURFACE.PRESSURE...',I3)
+C       READ THE SECOND TITLE XPRE, YPRE, ELEM
+	CALL READTITL(SUBTITL,NT)
+C       LOOP FOR THE TOTAL NUMBER OF PRESSURE CASES
+        DO 850 I=1,NSURF
+	  K0=0
+	  IREAD=0
+          DO 848 J=1,NT
+            IF (SUBTITL(J).EQ.SKEYW(54)) THEN      !XPRE
+C             READ THE X CO-ORDINATE OF THE PRESSURE
+              CALL READER(RSURFX,IDUMMY,IREAD,1,K0)
+              WRITE(6,462)RSURFX
+  462         FORMAT('XPRESSURE..........',F12.3)
+C              PSURF(NINSI)=RIN                           [PSURFX]
+            ENDIF
+            IF (SUBTITL(J).EQ.SKEYW(55)) THEN      !YPRE
+C             READ THE Y CO-ORDINATE OF THE PRESSURE
+              CALL READER(RSURFY,IDUMMY,IREAD,1,K0)
+              WRITE(6,470)RSURFY
+  470         FORMAT('YPRESSURE..........',F12.3)
+C              PSURF(NINSI)=RIN                           [PSURFY]
+            ENDIF
+            IF (SUBTITL(J).EQ.SKEYW(5)) THEN      !ELEM
+              WRITE(6,466)
+  466         FORMAT('ELEMENTS..........')
+C             READ FROM THE SAME LINE, THE NUMBER OF ELEMENTS
+C             SUBJECTED TO THE ABOVE PRESSURE             [NSURFEL]
+              DO II=1,MEL
+                CALL READER(DUMMY,NSURFEL,IREAD,0,K0)
+                IF((K0.GE.80).OR.(NSURFEL.EQ.0)) GO TO 464
+                PSURFX(NSURFEL)=RSURFX
+                PSURFY(NSURFEL)=RSURFY
+                WRITE(6,468)NSURFEL
+C               IN CASE OF IMPERIAL SYSTEM, CONVERT THE PRESSURE
+C               FROM (psi) TO (MPa)
+                IF(NUNIT.EQ.2) THEN
+                  PSURFX(NSURFEL)=PSURFX(NSURFEL)*6.895/1000.0
+                  PSURFY(NSURFEL)=PSURFY(NSURFEL)*6.895/1000.0
+                ENDIF
+  468           FORMAT(I3)
+              END DO
+  464         CONTINUE
+            ENDIF
+  848     CONTINUE
+  850   CONTINUE
+      ENDIF
+C     TRACTION.NODES
+C     ==============
+C     CASE FOUND THE SUBMODULUS TRACTION.NODES
+      IF(SUBTITL(1).EQ.SKEYW(56)) THEN
+C	INDEX THAT THE SUBMODULUS FOUND
+        KTRAC=1
+C       READ THE NUMBER OF TOTAL PRESSURE CASES            [NTRAC]
+	K0=0
+        CALL READER(DUMMY,NTRAC,IREAD,0,K0)
+        IF (NTRAC.GT.MND) THEN
+          WRITE(6,574)
+	  IEXIT=1
+	ENDIF
+        WRITE(6,471)NTRAC
+  471   FORMAT('TRACTION.NODES.....',I3)
+C       READ THE SECOND TITLE XTRA, YTRA, ELEM
+	CALL READTITL(SUBTITL,NT)
+C       LOOP FOR THE TOTAL NUMBER OF PRESSURE CASES
+        DO 860 I=1,NTRAC
+	  K0=0
+	  IREAD=0
+          DO 858 J=1,NT
+            IF (SUBTITL(J).EQ.SKEYW(57)) THEN      !XTRA
+C             READ THE X CO-ORDINATE OF THE TRACTION
+              CALL READER(RTRACX,IDUMMY,IREAD,1,K0)
+C             IN CASE OF IMPERIAL SYSTEM, CONVERT THE PRESSURE
+C             FROM (psi) TO (MPa)
+              IF(NUNIT.EQ.2) RTRACX=RTRACX*6.895/1000.0
+              WRITE(6,472)RTRACX
+  472         FORMAT('XTRACTION (MPa)....',F12.3)
+            ENDIF
+            IF (SUBTITL(J).EQ.SKEYW(58)) THEN      !YTRA
+C             READ THE Y CO-ORDINATE OF THE TRACTION
+              CALL READER(RTRACY,IDUMMY,IREAD,1,K0)
+C             IN CASE OF IMPERIAL SYSTEM, CONVERT THE PRESSURE
+C             FROM (psi) TO (MPa)
+              IF(NUNIT.EQ.2) RTRACY=RTRACY*6.895/1000.0
+
+              WRITE(6,473)RTRACY
+  473         FORMAT('YTRACTION (MPa)....',F12.3)
+C              TRAC(NINSI)=RIN                           [TRACY]
+            ENDIF
+
+            IF (SUBTITL(J).EQ.SKEYW(59)) THEN      !NODE
+              WRITE(6,476)
+  476         FORMAT('NODES.............')
+C             READ FROM THE SAME LINE, THE NUMBER OF NODES
+C             SUBJECTED TO THE ABOVE TRACTION            [NTRNOD]
+              DO II=1,MND
+                CALL READER(DUMMY,NTRNOD,IREAD,0,K0)
+                IF((K0.GE.80).OR.(NTRNOD.EQ.0)) GO TO 474
+                TRACX(NTRNOD)=RTRACX
+                TRACY(NTRNOD)=RTRACY
+                WRITE(6,478)NTRNOD
+  478           FORMAT(I3)
+              END DO
+  474         CONTINUE
+            ENDIF
+  858     CONTINUE
+  860   CONTINUE
+      ENDIF
+C     IN CASE OF EXPLOSION POINT, CHECK IF THE USER INTRODUCED THE UNIT
+C     SYSTEM NUNIT=3: ANY UNITS, RESPONSIBILITY OF THE USER. THIS SYSTEM
+C     IS NOT PERMITED IN THIS CASE, BECAUSE THE EMPIRICAL EXPLOSION EXPRESSION 
+C     DEPENDS UPON THE UNITS
+      IF((KEXPL.EQ.1).AND.(NUNIT.EQ.3)) THEN
+        WRITE(6,546)NUNIT
+        IEXIT=1
+       ENDIF
+ 500  FORMAT(/,10X,'  ERROR - NEGATIVE VALUE ',I4,
+     &             ' NOT PERMITED')
+ 502  FORMAT(/,10X,'  ERROR - FREQUENCY VALUE HAS BE GIVEN IN DOMAIN'
+     &       /,10X,'  DIFFERENT THAN STEADY STATE. CHECK MODULUS
+     &DOMAIN')
+ 510  FORMAT(/,10X,'  ERROR - NEGATIVE VALUE ',F12.3,
+     &             ' NOT PERMITED')
+ 542  FORMAT(/,10X,'  ERROR - THE NUMBER OF IB =',I3, 
+     &       /,10X,'  MUST BE  0 OR 1')
+ 544  FORMAT(/,10X,'  ERROR - THE ANGLE OF INCIDENT WAVE =',I3, 
+     &       /,10X,'  MUST BE IN RADS, BETWEEN 0 <= FAI < 360 DEG')
+ 546  FORMAT(/,10X,'  ERROR - EXPLOSION POINT WAVE AND ARBITRARY '
+     &       /,10X,'  UNIT SYSTEM UNITS=',I3, 'IS NOT PERMITED'
+     &       /,10X,'  CHECK THE MODULUS TYPE.PROBLEM, SUBMODULUS UNITS')
+ 566  FORMAT(/,10X,'  ERROR - DECAY INDEX MUST BE 0 OR 1')
+ 568  FORMAT(/,10X,'  ERROR - FORMULA NUMBER MUST BE 1, 2 OR 3')
+ 570  FORMAT(/,10X,'  ERROR - NUMBER INSIDE.PRESSURE MUST BE <= '
+     &       /,10X,'  NUMBER OF TOTAL BOUNDARIES')
+ 572  FORMAT(/,10X,'  ERROR - NUMBER SURFACE.PRESSURE MUST BE <= '
+     &       /,10X,'  NUMBER OF TOTAL ELEMENTS')
+ 574  FORMAT(/,10X,'  ERROR - NUMBER TRACTION.NODES MUST BE <= '
+     &       /,10X,'  NUMBER OF TOTAL NODES')
+      RETURN
+      END

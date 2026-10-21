@@ -1,0 +1,684 @@
+C
+C-----------------------------------------------------------
+      SUBROUTINE FASTINV1(ZLT1,SLT1,CF,WR,WI,JP1,NF,DLANCZ,
+     &     AX,BX,ARFFT,AIFFT,N,N3,N4,N8,N9,NP1,KUN,NUNIT)
+C
+      IMPLICIT COMPLEX*16 (Z)
+      IMPLICIT REAL*8 (A-H,O-Y)
+      DIMENSION ZLT1(N9,N4,N3),SLT1(N9,N4,N3)
+      DIMENSION CF(N9),WR(N9),WI(N9),JP1(N8)
+      DIMENSION AX(N9),BX(N9)
+      DIMENSION DLANCZ(N9)
+      DO 1 I=1,NP1
+C       LOOP FOR THE 3 NODES OF THE QUADRATIC ELEMENT
+        DO 1 J=1,N4
+          DO 3 K=1,N
+C            ZZ=ZLT1(K,I)
+            ZZ=ZLT1(K,J,I)
+            ZZ=ZZ*DLANCZ(K)
+            AX(K)=DREAL(ZZ)
+            BX(K)=DIMAG(ZZ)
+  3       CONTINUE
+          AX(1)=0.5D0*AX(1)
+          CALL FFCT(AX,BX,N,WR,WI,JP1,NF,ARFFT,AIFFT,N8)
+          AX(1)=2.0D0*AX(1)
+          DO 6 K=1,N
+            SLT1(K,J,I)=AX(K)
+            SLT1(K,J,I)=CF(K)*SLT1(K,J,I)
+  6       CONTINUE
+  1   CONTINUE
+C     IN CASE OF IMPERIAL SYSTEM, CONVERT THE LENGHTS FROM (M) TO (IN)
+C     THE STRESSES FROM (MPA) TO (PSI)
+      IF(NUNIT.EQ.2) THEN
+C       STRESSES, FROM (MPA) TO (PSI)
+        IF(KUN.EQ.1) THEN
+          DO 10 I=1,NP1
+            DO 10 J=1,N4
+              DO 10 K=1,N
+                SLT1(K,J,I)=SLT1(K,J,I)*1000.0D0/6.895D0
+  10      CONTINUE
+        ENDIF
+C       DISPLACEMENTS, FROM (M) TO (IN)
+        IF(KUN.EQ.2) THEN
+          DO 12 I=1,NP1
+            DO 12 J=1,N4
+              DO 12 K=1,N
+                SLT1(K,J,I)=SLT1(K,J,I)/0.0254D0
+  12      CONTINUE
+        ENDIF
+      ENDIF
+      WRITE(13,*) SLT1
+      RETURN
+      END
+C
+C-----------------------------------------------------------
+      SUBROUTINE FASTINV2(ZDINT,SDINT,CF,WR,WI,JP1,NF,DLANCZ,
+     &       AX,BX,ARFFT,AIFFT,N,N4,N8,N9,NP1,KUN,NUNIT)
+      IMPLICIT COMPLEX*16 (Z)
+      IMPLICIT REAL*8 (A-H,O-Y)
+      DIMENSION ZDINT(N9,NINT),SDINT(N9,NINT)
+      DIMENSION CF(N9),WR(N9),WI(N9),JP1(N8)
+      DIMENSION AX(N9),BX(N9)
+      DIMENSION DLANCZ(N9)
+C     FREQUENCY FOR HARMONIC WAVE
+      COMMON/FREQ/OFREQ
+C     INTERNAL POINTS WITH THEIR CO-ORDINATES
+      COMMON/INTERN/NINT,CINT(10,2)
+C
+      DO 30 JI=1,NINT
+        DO 35 K=1,N
+          ZZ=ZDINT(K,JI)
+          ZZ=ZZ*DLANCZ(K)
+          AX(K)=DREAL(ZZ)
+          BX(K)=DIMAG(ZZ)
+  35    CONTINUE
+        AX(1)=0.5D0*AX(1)
+        CALL FFCT(AX,BX,N,WR,WI,JP1,NF,ARFFT,AIFFT,N8)
+        AX(1)=2.0D0*AX(1)
+C        ENDIF
+        DO 65 K=1,N
+          SDINT(K,JI)=AX(K)
+          SDINT(K,JI)=CF(K)*SDINT(K,JI)
+  65    CONTINUE
+  30  CONTINUE
+C     IN CASE OF IMPERIAL SYSTEM, CONVERT THE LENGHTS FROM (M) TO (IN)
+C     THE STRESSES FROM (MPA) TO (PSI)
+      IF(NUNIT.EQ.2) THEN
+C       DISPLACEMENTS, FROM (M) TO (IN)
+        IF(KUN.EQ.2) THEN
+          DO 40 JI=1,NINT
+            DO 40 K=1,N
+              SDINT(K,JI)=SDINT(K,JI)/0.0254D0
+  40      CONTINUE
+        ENDIF
+      ENDIF
+      WRITE(13,*) SDINT
+      RETURN
+      END
+C
+C------------------------------------------------
+        SUBROUTINE FFCT(VR,VI,NT,WR,WI,JP1,NF,AR,AI,N8)
+C
+C       FAST FOURIER ALGORITHM FOR INVERSE TRANSFORMATION
+C
+C       VR, VI ARE REAL AND IMAGINARY PARTS OF FUNCTION TO BE INVERTED
+C       NT IS NUMBER OF LAPLACE SPECTRUM POINTS
+C
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION VR(NT),VI(NT)
+        DIMENSION AUXR(5),AUXI(5)
+        DIMENSION AR(NT),AI(NT)
+        DIMENSION WR(NT),WI(NT),JP1(N8),JC1(5)
+C
+        N=NT
+        K=1
+        J=0
+        GO TO 8
+  4     LP=1
+        LS=0
+        NM=NF-1
+        DO 9 KK=1,NM
+        LC=JC1(KK+1)-1
+        LP=LP*JP1(KK)
+        LS=LS+LC*LP
+  9     CONTINUE
+        LS=LS+JC1(1)
+        AR(K)=VR(LS)
+        AI(K)=VI(LS)
+        K=K+1
+  7     JC1(J)=JC1(J)+1
+        NST=JC1(J)-JP1(J)
+        IF (NST) 8,8,6
+  8     JM=J+1
+        IF (JM-NF) 2,2,1
+  2     DO 3 L=JM,NF
+        JC1(L)=1
+  3     CONTINUE
+  1     J=NF
+        GO TO 4
+  6     J=J-1
+        IF (J) 5,5,7
+  5     DO 11 I=1,N
+        VR(I)=AR(I)
+        VI(I)=AI(I)
+  11    CONTINUE
+        NUR=N
+        DO 25 I=1,NF
+        K=NF-I+1
+        NU=JP1(K)
+        NUR=NUR/NU
+        NUD=N/(NUR*NU)
+        LRD=NUR*NUD
+        LDU=NUD*NU
+        LS=(NUR-1)*LDU+1
+        DO 24 KRE=1,LS,LDU
+        KRE1=KRE-1
+        DO 22 LE=1,NUD
+        LE1=LE-1
+        JAC=NUR*LE1
+        DO 21 NS=1,NU
+        AUXR(NS)=0.0D0
+        AUXI(NS)=0.0D0
+        LA=LE+KRE1
+        DO 20 NUT=1,NU
+        M=JAC*(NUT-1)
+        MQ=M/N
+        M=M+1-MQ*N
+        Q=WI(M)
+        AUXR(NS)=AUXR(NS)+VR(LA)*WR(M)-VI(LA)*Q
+        AUXI(NS)=AUXI(NS)+VR(LA)*Q+VI(LA)*WR(M)
+        LA=LA+NUD
+  20    CONTINUE
+        JAC=JAC+LRD
+  21    CONTINUE
+        LA=LE+KRE1
+        DO 23 NS=1,NU
+        VR(LA)=AUXR(NS)
+        VI(LA)=AUXI(NS)
+        LA=LA+NUD
+  23    CONTINUE
+  22    CONTINUE
+  24    CONTINUE
+  25    CONTINUE
+        RETURN
+        END
+C--------------------------------------------------------------
+        SUBROUTINE BEM(AK,AKMG,XCR,YCR,KONN,NONN,MBCU,LBCU,NDTYPE,
+     &      ZLOAD1,NCOUNT,NHPOS,ZGM,ZFM,ZLOAD,ZTEMP,
+     &      ZLT1,ZLT2,ZLT3,ZLD1,ZLD2,SFDIAG,ZZ1,ZZ2,ZZ3,ZDINTX,
+     &      ZDINTY,NA1,NA2,NA3,N1,N2,N3,N4,N5,N7,N9,LINV,MINV)
+C
+C       THE BEM SOLUTION BEGINS HERE
+C
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION XCR(N1),YCR(N1),KONN(N3,N4),MBCU(N2)
+        DIMENSION NONN(N1,N4)
+        DIMENSION LBCU(N3),NDTYPE(N1)
+        DIMENSION ZGM(NA2,NA2),ZFM(NA2,NA2),ZLOAD(N2),ZTEMP(N2)
+        DIMENSION NHPOS(N3)
+        DIMENSION ZLOAD1(N5)
+        DIMENSION SFDIAG(N1,2,2)
+        DIMENSION ZZ1(N4,N3),ZZ2(N4,N3),ZZ3(N4,N3)
+        DIMENSION ZLT1(N9,N4,N3),ZLT2(N9,N4,N3),ZLT3(N9,N4,N3)
+        DIMENSION ZLD1(N9,N4,N3),ZLD2(N9,N4,N3)
+        DIMENSION LINV(N2),MINV(N2)
+        COMMON/CONTR/NNODE,NELEM,NP
+        COMMON/FREE/NFFS,NFRE
+C       FREQUENCY FOR HARMONIC WAVE
+        COMMON/FREQ/OFREQ
+C       INTERNAL POINTS WITH THEIR CO-ORDINATES
+        COMMON/INTERN/NINT,CINT(10,2)
+        DIMENSION ZDINTX(N9,NINT),ZDINTY(N9,NINT)
+        ZK=DCMPLX(AK,AKMG)
+        IF (NCOUNT .EQ. 1) CALL CLRARR(SFDIAG,N1*4)
+        CALL NMAIN(NCOUNT,ZK,XCR,YCR,KONN,N1,N2,N3,N4,
+     &           SFDIAG,LBCU,NDTYPE)
+        CALL GENR(NCOUNT,KONN,MBCU,ZGM,ZFM,ZLOAD,ZTEMP,NA1,NA2,
+     &            NA3,N1,N2,N3,N4,SFDIAG,LBCU,NDTYPE,LINV,MINV)
+        CALL HOOP(KONN,NONN,ZLOAD,ZTEMP,ZLOAD1,XCR,YCR,
+     &        NA1,NA2,NA3,N1,N2,N3,N4,N5,ZZ1,ZZ2,ZZ3,ZK)
+C         TRACTIONS
+          NP1=NP/3
+          IF(NP1.GT.NA3) NP1=NA3
+          DO 1 J=1,NP1
+            IF(NP1.EQ.NA3) NJ=J
+            IF(NP1.LT.NA3) NJ=NHPOS(J)
+C           LOOP FOR THE 3 NODES OF THE QUADRATIC ELEMENT
+            DO 11 L=1,N4
+              ZLT1(NCOUNT,L,J)=ZZ1(L,NJ)
+              ZLT2(NCOUNT,L,J)=ZZ2(L,NJ)
+              ZLT3(NCOUNT,L,J)=ZZ3(L,NJ)
+  11        CONTINUE
+  1       CONTINUE
+C
+C         DISPLACEMENTS
+          DO 2 JCL=1,NA3
+            DO 2 I=1,N4
+              LN2=KONN(JCL,I)
+              JREF=2*(LN2-1)
+              ZLD1(NCOUNT,I,JCL)=ZTEMP(JREF+1)
+              ZLD2(NCOUNT,I,JCL)=ZTEMP(JREF+2)
+  2       CONTINUE
+C       INTERNAL POINTS
+        IF(NINT.GT.0) THEN
+          REWIND 7
+          REWIND 8
+          CALL NMAININT(NCOUNT,ZK,XCR,YCR,KONN,N1,N2,N3,N4,
+     &                     SFDIAG,LBCU,NDTYPE)
+          CALL GENRINT(NCOUNT,KONN,MBCU,ZLOAD,ZTEMP,
+     &      ZDINTX,ZDINTY,
+     &      NA1,NA2,NA3,N1,N2,N3,N4,N9,LBCU,NDTYPE,LINV,MINV)
+          REWIND 7
+          REWIND 8
+        ENDIF
+        RETURN
+        END
+C----------------------------------------------------------------------
+        SUBROUTINE NMAIN(NCOUNT,ZK,XCR,YCR,KONN,N1,N2,N3,N4,SFDIAG,
+     &                   LBCU,NDTYPE)
+C
+C       START NODAL COLLOCATION SCHEME AND SUBDIVISION INTO SUBELEMENT
+C
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION XCR(N1),YCR(N1),KONN(N3,N4)
+        DIMENSION SFDIAG(N1,2,2)
+        DIMENSION LBCU(N3),NDTYPE(N1)
+        DIMENSION XY(3,2),LDIR(3),RLNA(3),SHP(3),DSHP(3),RN(2)
+        COMMON/CONTR/NNODE,NELEM,NP
+        COMMON/GAUSS/GPN(10,10),WTN(10,10),GPS(10,10),WTS(10,10)
+        COMMON/FREE/NFFS,NFRE
+        NOD=3
+        TOL1=1.0D-02
+        TOL2=1.0D-04
+C
+        DO 2 ICL=1,NNODE
+        IF(NDTYPE(ICL).EQ.4) GO TO 2
+        XPT=XCR(ICL)
+        YPT=YCR(ICL)
+        DO 3 JCL=1,NELEM
+        DO 4 I=1,NOD
+        LN=KONN(JCL,I)
+        LDIR(I)=LN
+        XY(I,1)=XCR(LN)
+        XY(I,2)=YCR(LN)
+  4     CONTINUE
+C        LN2=KONN(JCL,2)
+C
+C       CHECK FOR SINGULAR ELEMENTS
+C
+        IN=0
+        NSUB=1
+        DO 6 I=1,NOD
+        RLNA(I)=DSQRT((XY(I,1)-XPT)**2+(XY(I,2)-YPT)**2)
+        IF (RLNA(I) .LT. TOL1) IN=I
+  6     CONTINUE
+        IF (IN .EQ. 0) GO TO 10
+C
+C       SINGULAR CASE SUBDIVISION
+C
+        NSUB=4
+        NPS=6
+        KDIAK=0
+        CALL INTEGR(NCOUNT,ZK,NPS,ICL,JCL,IN,NSUB,NOD,XPT,
+     &         YPT,XY,SFDIAG,N1,N2,N3,LBCU,NDTYPE,KDIAK)
+        GO TO 3
+C
+C       NONSINGULAR CASE SUBDIVISION
+C
+  10    CONTINUE
+        RMIN=RLNA(1)
+        DO 7 I=2,NOD
+        IF (RMIN .GT. RLNA(I)) RMIN=RLNA(I)
+  7     CONTINUE
+C
+        NGP=6
+        ELEG=0.0D0
+        DO 8 IX=1,NGP
+        EK=GPN(NGP,IX)
+        WT=WTN(NGP,IX)
+        CALL CSHAPE(EK,NOD,XY,SHP,DSHP,RN,DETJ)
+        ELEG=ELEG+DETJ*WT
+  8     CONTINUE
+C
+        RATIO=RMIN/ELEG
+        IF (RATIO .LT. 1.0D0) NSUB=3
+        IF (RATIO .GE. 1.0D0 .AND. RATIO .LE. 2.0D0) NSUB=2
+C
+        ELEG=ELEG/NSUB
+        RAT1=TOL2*ELEG
+        RAT2=ELEG/(4.0D0*RMIN)
+        RPN=0.5D0*DLOG(RAT1)/DLOG(RAT2)+1.0D0
+        NPN=IDINT(RPN)
+        IF (NPN .LT. 2) NPN=2
+        IF (NPN .GT. 10) NPN=10
+        KDIAK=0
+        CALL INTEGR(NCOUNT,ZK,NPN,ICL,JCL,IN,NSUB,NOD,XPT,
+     &       YPT,XY,SFDIAG,N1,N2,N3,LBCU,NDTYPE,KDIAK)
+  3     CONTINUE
+  2     CONTINUE
+        RETURN
+        END
+C----------------------------------------------------------------------
+        SUBROUTINE NMAININT(NCOUNT,ZK,XCR,YCR,KONN,N1,N2,N3,N4,
+     &                   SFDIAG,LBCU,NDTYPE)
+C
+C       START NODAL COLLOCATION SCHEME AND SUBDIVISION INTO SUBELEMENT
+C
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION XCR(N1),YCR(N1),KONN(N3,N4)
+        DIMENSION SFDIAG(N1,2,2)
+        DIMENSION LBCU(N3),NDTYPE(N1)
+        DIMENSION XY(3,2),LDIR(3),RLNA(3),SHP(3),DSHP(3),RN(2)
+        COMMON/CONTR/NNODE,NELEM,NP
+        COMMON/GAUSS/GPN(10,10),WTN(10,10),GPS(10,10),WTS(10,10)
+        COMMON/FREE/NFFS,NFRE
+C       INTERNAL POINTS WITH THEIR CO-ORDINATES
+        COMMON/INTERN/NINT,CINT(10,2)
+        NOD=3
+        TOL1=1.0D-02
+        TOL2=1.0D-04
+        DO 2 IIN=1,NINT
+         ICL=IIN
+C        LOOP FOR ALL THE INTERNAL NODES
+C        SOURCE NODE IS THE INTERNAL POINT NOW
+         XPT=CINT(IIN,1)
+         YPT=CINT(IIN,2)
+         DO 3 JCL=1,NELEM
+         DO 4 I=1,NOD
+         LN=KONN(JCL,I)
+         LDIR(I)=LN
+         XY(I,1)=XCR(LN)
+         XY(I,2)=YCR(LN)
+  4      CONTINUE
+C
+C       CHECK FOR SINGULAR ELEMENTS
+C
+        IN=0
+        NSUB=1
+        DO 6 I=1,NOD
+        RLNA(I)=DSQRT((XY(I,1)-XPT)**2+(XY(I,2)-YPT)**2)
+        IF (RLNA(I) .LT. TOL1) IN=I
+  6     CONTINUE
+        IF (IN .EQ. 0) GO TO 10
+C
+C       SINGULAR CASE SUBDIVISION
+C
+        NSUB=4
+        NPS=6
+        KDIAK=1
+        CALL INTEGR(NCOUNT,ZK,NPS,ICL,JCL,IN,NSUB,NOD,XPT,
+     &         YPT,XY,SFDIAG,N1,N2,N3,LBCU,NDTYPE,KDIAK)
+        GO TO 3
+C
+C       NONSINGULAR CASE SUBDIVISION
+C
+  10    CONTINUE
+        RMIN=RLNA(1)
+        DO 7 I=2,NOD
+        IF (RMIN .GT. RLNA(I)) RMIN=RLNA(I)
+  7     CONTINUE
+C
+        NGP=6
+        ELEG=0.0D0
+        DO 8 IX=1,NGP
+        EK=GPN(NGP,IX)
+        WT=WTN(NGP,IX)
+        CALL CSHAPE(EK,NOD,XY,SHP,DSHP,RN,DETJ)
+        ELEG=ELEG+DETJ*WT
+  8     CONTINUE
+C
+        RATIO=RMIN/ELEG
+        IF (RATIO .LT. 1.0D0) NSUB=3
+        IF (RATIO .GE. 1.0D0 .AND. RATIO .LE. 2.0D0) NSUB=2
+C
+        ELEG=ELEG/NSUB
+        RAT1=TOL2*ELEG
+        RAT2=ELEG/(4.0D0*RMIN)
+        RPN=0.5D0*DLOG(RAT1)/DLOG(RAT2)+1.0D0
+        NPN=IDINT(RPN)
+        IF (NPN .LT. 2) NPN=2
+        IF (NPN .GT. 10) NPN=10
+        KDIAK=1
+        CALL INTEGR(NCOUNT,ZK,NPN,ICL,JCL,IN,NSUB,NOD,XPT,
+     &       YPT,XY,SFDIAG,N1,N2,N3,LBCU,NDTYPE,KDIAK)
+  3     CONTINUE
+  2     CONTINUE
+        RETURN
+        END
+C---------------------------------------------------------------
+        SUBROUTINE INTEGR(NCOUNT,ZK,NGP,ICL,JCL,IN,NSUB,NOD,
+     &      XPT,YPT,XY,SFDIAG,N1,N2,N3,LBCU,NDTYPE,KDIAK)
+C
+C       FORMATION OF 2*2 SUBMATRICES VIA NUMERICAL INTEGRATION
+C
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION SKT(3,2,2),SU(2,2),ST(2,2)
+        DIMENSION SFDIAG(N1,2,2)
+        DIMENSION XY(3,2),YX(3,2),SHP(3),DSHP(3),RN(2)
+        DIMENSION ZKU(3,2,2),ZKT(3,2,2),ZU(2,2),ZT(2,2),X(2),Y(2)
+        DIMENSION LBCU(N3),NDTYPE(N1)
+C
+        COMMON/GAUSS/GPN(10,10),WTN(10,10),GPS(10,10),WTS(10,10)
+        COMMON/FREE/NFFS,NFRE
+C
+        CALL CLRARR(YX,6)
+        CALL CLRZRR(ZKU,12)
+        CALL CLRZRR(ZKT,12)
+        CALL CLRARR(SKT,12)
+        DO 10 IS=1,NSUB
+        DO 10 IX=1,NGP
+        IF (IN .GT. 0) GO TO 40
+C
+C       NONSINGULAR CASE
+C
+        EK=GPN(NGP,IX)
+        WT=WTN(NGP,IX)
+        GO TO 41
+C
+C       SINGULAR CASE
+C
+  40    EK=GPN(NGP,IX)
+        WT=WTN(NGP,IX)
+  41    CONTINUE
+C
+C       START AT LINEAR SUBELEMENT LEVEL
+C
+        RINC=2.0D0/DFLOAT(NSUB)
+        YX(1,1)=-1.0D0+RINC*DFLOAT(IS-1)
+        YX(2,1)=YX(1,1)+RINC
+        CALL CSHAPE(EK,2,YX,SHP,DSHP,RN,DETJ1)
+C
+C       CONTINUE WITH LOCAL QUADRATIC ELEMENT LEVEL
+C
+        EKS=0.0D0
+        DO 11 I=1,2
+        EKS=EKS+YX(I,1)*SHP(I)
+  11    CONTINUE
+C
+        CALL CSHAPE(EKS,NOD,XY,SHP,DSHP,RN,DETJ2)
+        DETJ=DETJ1*DETJ2
+C
+C       NOW AT GLOBAL QUADRATIC ELEMENT LEVEL
+C
+        XG=0.0D0
+        YG=0.0D0
+        DO 12 I=1,NOD
+        XG=XG+XY(I,1)*SHP(I)
+        YG=YG+XY(I,2)*SHP(I)
+  12    CONTINUE
+        X(1)=XG
+        X(2)=YG
+        Y(1)=XPT
+        Y(2)=YPT
+        CALL KERNEL2(ZU,ZT,X,Y,RN,ZK)
+C
+        CALL ZERNEL(XPT,YPT,XG,YG,RN,SU,ST)
+        IF (IN .NE. 0) GO TO 18
+C
+C       NUMERICAL INTEGRATION - NONSINGULAR CASE
+C
+        DO 16 K1=1,NOD
+        AMUL=SHP(K1)*DETJ*WT
+        DO 17 K2=1,2
+        DO 17 K3=1,2
+        ZKU(K1,K2,K3)=ZKU(K1,K2,K3)+ZU(K2,K3)*AMUL
+        ZKT(K1,K2,K3)=ZKT(K1,K2,K3)+ZT(K2,K3)*AMUL
+        IF (NCOUNT .EQ. 1)
+     &    SKT(K1,K2,K3)=SKT(K1,K2,K3)+ST(K2,K3)*AMUL
+  17    CONTINUE
+  16    CONTINUE
+        GO TO 10
+  18    CONTINUE
+C
+C       NUMERICAL INTEGRATION - SINGULAR CASE
+C
+        DO 19 K1=1,NOD
+        AMUL=SHP(K1)*DETJ*WT
+        DO 20 K2=1,2
+        DO 20 K3=1,2
+        ZKU(K1,K2,K3)=ZKU(K1,K2,K3)+ZU(K2,K3)*AMUL
+        IF (K1 .EQ. IN) GO TO 21
+        SKT(K1,K2,K3)=SKT(K1,K2,K3)+ST(K2,K3)*AMUL
+        ZKT(K1,K2,K3)=ZKT(K1,K2,K3)+ZT(K2,K3)*AMUL
+        GO TO 20
+  21    ZKT(K1,K2,K3)=ZKT(K1,K2,K3)+
+     &          (ZT(K2,K3)-ST(K2,K3))*AMUL
+  20    CONTINUE
+  19    CONTINUE
+  10    CONTINUE
+C
+C       SUBMATRICES ARE STORED ON TAPES FOR LATER ASSEMBLY
+C
+        DO 28 K1=1,NOD
+        WRITE(7,*) ((ZKU(K1,K2,K3),K2=1,2),K3=1,2)
+  28    CONTINUE
+        DO 29 K1=1,NOD
+        WRITE(8,*) ((ZKT(K1,K2,K3),K2=1,2),K3=1,2)
+  29    CONTINUE
+C
+C       DIAGONAL TERMS
+C
+        IF (NCOUNT .GT. 1) RETURN
+        IF(KDIAK.EQ.1) RETURN
+        DO 30 K1=1,NOD
+        IF (K1 .EQ. IN) GO TO 30
+        DO 31 K2=1,2
+        DO 31 K3=1,2
+        SFDIAG(ICL,K2,K3)=SFDIAG(ICL,K2,K3)
+     &                    -SKT(K1,K2,K3)
+  31    CONTINUE
+  30    CONTINUE
+        RETURN
+        END
+C------------------------------------------------
+        SUBROUTINE CSHAPE(EK,NOD,XY,SHP,DSHP,RN,DETJ)
+C
+C       SHAPE FUNCTIONS, OUTWARD NORMAL, AND DET. OF JACOBIAN FOR LINE
+C       ELEMENTS LINEAR AND QUADRATIC TYPES
+C
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION XY(3,2),SHP(3),DSHP(3),RN(2),AJAC(2)
+        TOL=1.0E-11
+        IF (NOD .EQ. 3) GO TO 1
+C
+C       LINEAR
+C
+        SHP(1)=0.5D0*(1.0D0-EK)
+        SHP(2)=0.5D0*(1.0D0+EK)
+C
+        DSHP(1)=-0.5D0
+        DSHP(2)=0.5D0
+        GO TO 2
+C
+C       QUADRATIC
+C
+  1     CONTINUE
+        SHP(1)=-0.5D0*EK+0.5D0*EK**2
+        SHP(2)=1.0D0-EK**2
+        SHP(3)=0.5D0*EK+0.5D0*EK**2
+C
+        DSHP(1)=-0.5D0+EK
+        DSHP(2)=-2.0D0*EK
+        DSHP(3)=0.5D0+EK
+  2     CONTINUE
+C
+C       JACOBIAN MATRIX, DETERMINANT, NORMAL VECTOR
+C
+        DO 10 I=1,2
+        AJAC(I)=0.0D0
+        DO 10 J=1,NOD
+        AJAC(I)=AJAC(I)+DSHP(J)*XY(J,I)
+  10    CONTINUE
+C
+        DETJ=DSQRT(AJAC(1)**2+AJAC(2)**2)
+
+C       CALCULATE THE RN(1)= COS OF NORMAL TO THE ELEMENT UNIT OUTWARD VECTOR
+C                            WITH THE GLOBAL X-AXIS
+C                            (DIRECTION COSINE OF UNIT OUTWARD NORMAL VECTOR)
+C                     RN(2)= SIN OF NORMAL TO THE ELEMENT UNIT OUTWARD VECTOR
+C                            WITH THE GLOBAL X-AXIS
+        AJ1=AJAC(1)
+        AJ2=AJAC(2)
+C       DETJ ALWAYS POSSITIVE OR 0
+        IF(DETJ.LT.TOL)THEN
+          IF (DETJ.EQ.0.0D0) THEN
+            IF (AJ2.GT.0.0D0) RN(1)=0.0D0
+            IF (AJ2.LT.0.0D0) RN(1)=0.0D0
+            IF (AJ1.LT.0.0D0) RN(2)=1.0D0
+            IF (AJ2.GT.0.0D0) RN(2)=-1.0D0
+            GO TO 34
+          ENDIF
+        ENDIF
+        RN(1)=AJ2/DETJ
+        RN(2)=-AJ1/DETJ
+  34    CONTINUE
+        RETURN
+        END
+C------------------------------------------------
+        SUBROUTINE KERNEL2(ZU,ZT,X,Y,RN,Z)
+C
+C       EVALUAT. OF 2-D FUNDAMENTAL SOLUTIONS IN LAPLACE TRANSF. DOMAIN
+C
+C       ZU IS DISPLACEMENT FUNDAMENTAL SOLUTION
+C       ZT IS TRACTION FUNDAMENTAL SOLUTION
+C       X,Y ARE FIELD AND SOURCE POINTS, RN IS NORMAL VECTOR
+C       Z IS LAPLACE TRANSFORM PARAMETER
+C
+        IMPLICIT REAL*8 (A-H,O-Y)
+        IMPLICIT COMPLEX*16 (Z)
+        COMMON/MATER/RLA,RMU,RNU,RHO,C1,C2,TIM,FVISC,NMODE
+        DIMENSION ZU(2,2),ZT(2,2),X(2),Y(2),RN(2),RC(2)
+        DIMENSION D(2,2)
+        DATA D/1.0D0,0.0D0,0.0D0,1.0D0/
+        TOL=1.0D-9
+C       FIND THE COMPLEX VALUES OF LAME'S CONSTANTS
+        CALL VISCOEL(Z,ZMU,ZLA,ZNU,ZZC1,ZZC2) 
+        PI=3.14159265359D0
+        R=0.0D0
+        DO 10 I=1,2
+        R=R+(X(I)-Y(I))**2
+  10    CONTINUE
+        R=DSQRT(R)
+C
+        DO 20 I=1,2
+        RC(I)=(X(I)-Y(I))/R
+  20    CONTINUE
+C
+        DRN=0.0D0
+        DO 21 I=1,2
+        DRN=DRN+RC(I)*RN(I)
+  21    CONTINUE
+C
+        ZC1=Z*R/ZZC1
+        ZC2=Z*R/ZZC2
+        CALL BESSEL(ZC1,ZK01,ZK11,ZK21)
+        CALL BESSEL(ZC2,ZK02,ZK12,ZK22)
+        ZPSI=ZK02+(1.0D0/ZC2)*(ZK12-(ZZC2/ZZC1)*ZK11)
+        ZCHI=ZK22-(ZZC2**2/ZZC1**2)*ZK21
+C
+        ZDPSI=-(1.0D0/R)*ZK02-(Z/ZZC2+2.0D0/(ZC2*R))*ZK12+
+     &         (ZZC2**2/(ZZC1**2*R))*
+     &          ZK01+((2.0D0*ZZC2**2)/(Z*ZZC1*R**2))*ZK11
+        ZDCHI=-(2.0D0/R)*ZK02-(Z/ZZC2+4.0D0/(ZC2*R))*ZK12+
+     &         ((2.0D0*ZZC2**2)/
+     &         (ZZC1**2*R))*ZK01+((ZZC2**2*Z)/ZZC1**3+(4.0D0*ZZC2**2)/
+     &         (Z*ZZC1*R**2))*ZK11
+C
+        ZE1=ZDPSI-ZCHI/R
+        ZE2=2.0D0*ZCHI/R
+        ZE3=2.0D0*ZDCHI*DRN
+        ZE4=(ZZC1**2/ZZC2**2-2.0D0)*(ZDPSI-ZDCHI-ZCHI/R)
+C
+        DO 50 I=1,2
+        DO 50 J=1,2
+        ZU(I,J)=(.5D0/(PI*ZMU))*(ZPSI*D(I,J)-ZCHI*RC(I)*RC(J))
+        ZT(I,J)=(.5D0/PI)*(ZE1*(DRN*D(I,J)+RC(J)*RN(I))-ZE2*
+     &        (RN(J)*RC(I)-2.D0*RC(I)*RC(J)*DRN)-ZE3*RC(I)*
+     &        RC(J)+ZE4*RC(I)*RN(J))
+  50    CONTINUE
+        RETURN
+        END

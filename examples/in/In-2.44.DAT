@@ -1,0 +1,34 @@
+TITLE
+2.3.3 Cylindrical cavity in an infinite medium, sudden central internal explosion pressure
+TYPE.PROBLEM
+DOMAIN ANALYSIS UNITS
+  1  1  1
+SECTION.TYPE
+BOUNDARIES
+  1
+SHAPE ELEMENTS GEOMETRY
+  1  16  6.35
+MATERIAL.PROPERTIES
+E NU RO
+207000 0.33 8.48
+STEP.NUMBER
+  20
+TIME.TOTAL
+  0.015
+* Central explosion location: cavity centre (0,0) m.
+* A 10.0 MPa internal radial pressure is applied suddenly and maintained constant.
+LOAD.STRESSES
+PLANE.WAVE
+LONGITUDINAL.STRESS TRANSVERSE.SHEAR ANGLE
+  0.0 0.0 0.0
+INSIDE.PRESSURE
+  1
+BOUNDARY
+  1
+INSIDE.PRESSURE
+  10.0
+PLOTS
+  2 5 12 21 22 28 29 30
+NODE.PLOTS
+  1
+END

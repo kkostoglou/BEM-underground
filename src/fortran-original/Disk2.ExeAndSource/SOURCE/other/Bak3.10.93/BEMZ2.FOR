@@ -1,0 +1,1268 @@
+C
+C$DEBUG
+C-----------------------------------------------------------
+C      SUBROUTINE FASTINVT(ZLT1,SLT1,CF,WR,WI,JP1,NF,DLANCZ,
+C     &     AX,BX,ARFFT,AIFFT,N,N3,N4,N8,N9,NP1,KUN,NUNIT)
+      SUBROUTINE FASTINVT(ZLT1,SLT1,KZON,CF,WR,WI,JP1,NF,DLANCZ,
+     &     AX,BX,ARFFT,AIFFT,N,N3,N4,N8,N9,NP1,NUNIT,MBD)
+
+C     INVERSION FOR TRACTIONS
+C     KUN : INDEX USED FOR UNITS CONVERTION
+C        1: TRACTIONS
+C        2: DISPLACEMENTS
+      IMPLICIT COMPLEX*16 (Z)
+      IMPLICIT REAL*8 (A-H,O-Y)
+c      DIMENSION ZLT1(N9,N4,N3),SLT1(N9,N4,N3)
+C      DIMENSION ZLT1(MBD,N9,N4,N3),SLT1(MBD,N9,N4,N3)
+      DIMENSION ZLT1(NZONE,N9,N4,N3),SLT1(NZONE,N9,N4,N3)
+
+
+C      DIMENSION KZON(MBD,N3,N4)
+      DIMENSION KZON(NZONE,N3,N4)
+
+
+
+
+      DIMENSION CF(N9),WR(N9),WI(N9),JP1(N8)
+      DIMENSION AX(N9),BX(N9)
+      DIMENSION DLANCZ(N9)
+
+
+
+C&&&&&&&&&&&&&&&&&&&&
+C     COMMON BLOCK FOR ZONES: NZONE IS THE TOTAL NUMBER OF ZONE BOUNDARIES
+C                             =0: NO ZONES, >0: ZONES ARE PRESENT
+      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,5)
+C      DIMENSION AX(N9),BX(N9)
+C
+C     TRACTIONS
+      NOD=3
+C     LOOP FOR ALL THE ZONES
+      DO 1 KZ=1,NZONE
+
+
+
+
+
+      DO 1 I=1,NP1
+C       PROCEED ONLY FOR THE ELEMENTS OF THE ZONE KZ
+C       SEARCH ARRAY KZON (ZONE K), TO FIND IF ELEMENT I IS INCLUDED
+        KZDIAK1=0
+        DO 5 KKK=1,NOD
+C          K1=KZON(KZ,JCL,KKK)
+          K1=KZON(KZ,I,KKK)
+C         THE ELEMENT I IS PART OF THE ZONE KZ, ONLY IF ALL THE
+C         CONNECTIVITY NODES ARE NOT 0
+          IF(K1.GT.0) KZDIAK1=1
+  5     CONTINUE
+        IF(KZDIAK1.EQ.1) THEN
+
+
+
+
+
+
+
+C       LOOP FOR THE 3 NODES OF THE QUADRATIC ELEMENT
+        DO 11 J=1,N4
+          DO 3 K=1,N
+C            ZZ=ZLT1(K,I)
+c            ZZ=ZLT1(K,J,I)
+            ZZ=ZLT1(KZ,K,J,I)
+
+
+
+
+
+            ZZ=ZZ*DLANCZ(K)
+            AX(K)=DREAL(ZZ)
+            BX(K)=DIMAG(ZZ)
+  3       CONTINUE
+C^^^^^^^^^^^^^^^^!!!!!!!!!!!!!
+C          FOR HARMONIC WAVE, DO NOT TAKE THE INVERSE TRANSFORM
+C          IF(KFRQ.EQ.0) THEN
+          AX(1)=0.5D0*AX(1)
+          CALL FFCT(AX,BX,N,WR,WI,JP1,NF,ARFFT,AIFFT,N8)
+          AX(1)=2.0D0*AX(1)
+C          ENDIF
+          DO 6 K=1,N
+c            SLT1(K,J,I)=AX(K)
+            SLT1(KZ,K,J,I)=AX(K)
+
+
+
+C            IF(KFRQ.EQ.0) THEN
+            SLT1(KZ,K,J,I)=CF(K)*SLT1(KZ,K,J,I)
+C            ENDIF
+  6       CONTINUE
+
+  11    CONTINUE
+
+        ENDIF
+
+
+  1   CONTINUE
+C     IN CASE OF IMPERIAL SYSTEM, CONVERT THE LENGHTS FROM (M) TO (IN)
+C     THE STRESSES FROM (MPA) TO (PSI)
+      IF(NUNIT.EQ.2) THEN
+C       STRESSES, FROM (MPA) TO (PSI)
+c        IF(KUN.EQ.1) THEN
+
+
+C     LOOP FOR ALL THE ZONES
+      DO 10 KZ=1,NZONE
+
+
+          DO 10 I=1,NP1
+            DO 10 J=1,N4
+              DO 10 K=1,N
+C                SLT1(K,J,I)=SLT1(K,J,I)*1000.0D0/6.895D0
+                SLT1(KZ,K,J,I)=SLT1(KZ,K,J,I)*1000.0D0/6.895D0
+
+
+
+
+
+
+  10      CONTINUE
+        ENDIF
+cC       DISPLACEMENTS, FROM (M) TO (IN)
+c        IF(KUN.EQ.2) THEN
+c          DO 12 I=1,NP1
+c            DO 12 J=1,N4
+c              DO 12 K=1,N
+c                SLT1(K,J,I)=SLT1(K,J,I)/0.0254D0
+c  12      CONTINUE
+c        ENDIF
+c      ENDIF
+      WRITE(13,*) SLT1
+
+C      SAVE FOR THE EXCEL
+C      WRITE(20,*) SLT1
+
+      RETURN
+      END
+C
+C-----------------------------------------------------------
+c      SUBROUTINE FASTINVD(ZLT1,SLT1,CF,WR,WI,JP1,NF,DLANCZ,
+c     &     AX,BX,ARFFT,AIFFT,N,N3,N4,N8,N9,NP1,KUN,NUNIT)
+      SUBROUTINE FASTINVD(ZLT1,SLT1,CF,WR,WI,JP1,NF,DLANCZ,
+     &     AX,BX,ARFFT,AIFFT,N,N3,N4,N8,N9,NP1,NUNIT)
+
+
+C
+C     INVERSION OF DISPLACEMENTS
+C
+cC     KUN : INDEX USED FOR UNITS CONVERTION
+cC        1: TRACTIONS
+cC        2: DISPLACEMENTS
+      IMPLICIT COMPLEX*16 (Z)
+      IMPLICIT REAL*8 (A-H,O-Y)
+      DIMENSION ZLT1(N9,N4,N3),SLT1(N9,N4,N3)
+      DIMENSION CF(N9),WR(N9),WI(N9),JP1(N8)
+      DIMENSION AX(N9),BX(N9)
+      DIMENSION DLANCZ(N9)
+C      DIMENSION AX(N9),BX(N9)
+C
+      DO 1 I=1,NP1
+C       LOOP FOR THE 3 NODES OF THE QUADRATIC ELEMENT
+        DO 1 J=1,N4
+          DO 3 K=1,N
+C            ZZ=ZLT1(K,I)
+            ZZ=ZLT1(K,J,I)
+            ZZ=ZZ*DLANCZ(K)
+            AX(K)=DREAL(ZZ)
+            BX(K)=DIMAG(ZZ)
+  3       CONTINUE
+C^^^^^^^^^^^^^^^^!!!!!!!!!!!!!
+C          FOR HARMONIC WAVE, DO NOT TAKE THE INVERSE TRANSFORM
+C          IF(KFRQ.EQ.0) THEN
+          AX(1)=0.5D0*AX(1)
+          CALL FFCT(AX,BX,N,WR,WI,JP1,NF,ARFFT,AIFFT,N8)
+          AX(1)=2.0D0*AX(1)
+C          ENDIF
+          DO 6 K=1,N
+            SLT1(K,J,I)=AX(K)
+C            IF(KFRQ.EQ.0) THEN
+            SLT1(K,J,I)=CF(K)*SLT1(K,J,I)
+C            ENDIF
+  6       CONTINUE
+  1   CONTINUE
+C     IN CASE OF IMPERIAL SYSTEM, CONVERT THE LENGHTS FROM (M) TO (IN)
+C     THE STRESSES FROM (MPA) TO (PSI)
+      IF(NUNIT.EQ.2) THEN
+cC       STRESSES, FROM (MPA) TO (PSI)
+c        IF(KUN.EQ.1) THEN
+c          DO 10 I=1,NP1
+c            DO 10 J=1,N4
+c              DO 10 K=1,N
+c                SLT1(K,J,I)=SLT1(K,J,I)*1000.0D0/6.895D0
+c  10      CONTINUE
+c        ENDIF
+C       DISPLACEMENTS, FROM (M) TO (IN)
+c        IF(KUN.EQ.2) THEN
+          DO 12 I=1,NP1
+            DO 12 J=1,N4
+              DO 12 K=1,N
+                SLT1(K,J,I)=SLT1(K,J,I)/0.0254D0
+  12      CONTINUE
+c        ENDIF
+      ENDIF
+      WRITE(13,*) SLT1
+
+C      SAVE FOR THE EXCEL
+C      WRITE(20,*) SLT1
+
+      RETURN
+      END
+C
+
+
+
+
+C-----------------------------------------------------------
+      SUBROUTINE FASTINVI(ZDINT,SDINT,CF,WR,WI,JP1,NF,DLANCZ,
+     &       AX,BX,ARFFT,AIFFT,N,N4,N8,N9,NP1,KUN,NUNIT)
+
+C     INVERSION OF TRACTIONS AND DISPLACEMENTS FOR INTERNAL POINTS
+C     KUN : INDEX USED FOR UNITS CONVERTION
+C        1: TRACTIONS
+C        2: DISPLACEMENTS
+C     NUNIT: INDEX FOR UNITS SYSTEM
+C        1: SI SYSTEM (INTARNATIONAL)
+C        2: IMPERIAL
+      IMPLICIT COMPLEX*16 (Z)
+      IMPLICIT REAL*8 (A-H,O-Y)
+      DIMENSION ZDINT(N9,NINT),SDINT(N9,NINT)
+      DIMENSION CF(N9),WR(N9),WI(N9),JP1(N8)
+      DIMENSION AX(N9),BX(N9)
+      DIMENSION DLANCZ(N9)
+C      DIMENSION AX(N9),BX(N9)
+C^^^^^^^^^!!!!!!!!!!!!
+C       FREQUENCY FOR HARMONIC WAVE
+        COMMON/FREQ/OFREQ
+C       INTERNAL POINTS WITH THEIR CO-ORDINATES
+        COMMON/INTERN/NINT,CINT(10,2)
+C
+      DO 30 JI=1,NINT
+        DO 35 K=1,N
+          ZZ=ZDINT(K,JI)
+          ZZ=ZZ*DLANCZ(K)
+          AX(K)=DREAL(ZZ)
+          BX(K)=DIMAG(ZZ)
+  35    CONTINUE
+CC       FOR HARMONIC WAVE, DO NOT TAKE THE INVERSE TRANSFORM
+CC       IF(KFRQ.EQ.0) THEN
+        AX(1)=0.5D0*AX(1)
+        CALL FFCT(AX,BX,N,WR,WI,JP1,NF,ARFFT,AIFFT,N8)
+        AX(1)=2.0D0*AX(1)
+C        ENDIF
+        DO 65 K=1,N
+          SDINT(K,JI)=AX(K)
+C          IF(KFRQ.EQ.0) THEN
+          SDINT(K,JI)=CF(K)*SDINT(K,JI)
+C          ENDIF
+  65    CONTINUE
+  30  CONTINUE
+C     IN CASE OF IMPERIAL SYSTEM, CONVERT THE LENGHTS FROM (M) TO (IN)
+C     THE STRESSES FROM (MPA) TO (PSI)
+      IF(NUNIT.EQ.2) THEN
+C       DISPLACEMENTS, FROM (M) TO (IN)
+        IF(KUN.EQ.2) THEN
+          DO 40 JI=1,NINT
+            DO 40 K=1,N
+              SDINT(K,JI)=SDINT(K,JI)/0.0254D0
+  40      CONTINUE
+        ENDIF
+      ENDIF
+      WRITE(13,*) SDINT
+      RETURN
+
+      END
+C
+C-----------------------------------------------
+        SUBROUTINE FFCT(VR,VI,NT,WR,WI,JP1,NF,AR,AI,N8)
+C
+C       FAST FOURIER ALGORITHM FOR INVERSE TRANSFORMATION
+C
+C       VR, VI ARE REAL AND IMAGINARY PARTS OF FUNCTION TO BE INVERTED
+C       NT IS NUMBER OF LAPLACE SPECTRUM POINTS
+C
+        IMPLICIT REAL*8 (A-H,O-Y)
+C        DIMENSION VR(1),VI(1)
+        DIMENSION VR(NT),VI(NT)
+C                           ################################
+C                           !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+C       MODIFICATION FOR 200 TIME STEPS
+C        DIMENSION AR(50),AI(50),AUXR(5),AUXI(5)
+C        DIMENSION AR(200),AI(200),
+        DIMENSION AUXR(5),AUXI(5)
+C        COMMON/TRIG/WR(50),WI(50),JP1(5),JC1(5),NF
+C        COMMON/TRIG/WR(200),WI(200),JP1(5),JC1(5),NF
+        DIMENSION AR(NT),AI(NT)
+        DIMENSION WR(NT),WI(NT),JP1(N8),JC1(5)
+C
+        N=NT
+        K=1
+        J=0
+        GO TO 8
+  4     LP=1
+        LS=0
+        NM=NF-1
+        DO 9 KK=1,NM
+        LC=JC1(KK+1)-1
+        LP=LP*JP1(KK)
+        LS=LS+LC*LP
+  9     CONTINUE
+        LS=LS+JC1(1)
+        AR(K)=VR(LS)
+        AI(K)=VI(LS)
+        K=K+1
+  7     JC1(J)=JC1(J)+1
+        NST=JC1(J)-JP1(J)
+        IF (NST) 8,8,6
+  8     JM=J+1
+        IF (JM-NF) 2,2,1
+  2     DO 3 L=JM,NF
+        JC1(L)=1
+  3     CONTINUE
+  1     J=NF
+        GO TO 4
+  6     J=J-1
+        IF (J) 5,5,7
+  5     DO 11 I=1,N
+        VR(I)=AR(I)
+        VI(I)=AI(I)
+  11    CONTINUE
+        NUR=N
+        DO 25 I=1,NF
+        K=NF-I+1
+        NU=JP1(K)
+        NUR=NUR/NU
+        NUD=N/(NUR*NU)
+        LRD=NUR*NUD
+        LDU=NUD*NU
+        LS=(NUR-1)*LDU+1
+        DO 24 KRE=1,LS,LDU
+        KRE1=KRE-1
+        DO 22 LE=1,NUD
+        LE1=LE-1
+        JAC=NUR*LE1
+        DO 21 NS=1,NU
+        AUXR(NS)=0.0D0
+        AUXI(NS)=0.0D0
+        LA=LE+KRE1
+        DO 20 NUT=1,NU
+        M=JAC*(NUT-1)
+        MQ=M/N
+        M=M+1-MQ*N
+        Q=WI(M)
+        AUXR(NS)=AUXR(NS)+VR(LA)*WR(M)-VI(LA)*Q
+        AUXI(NS)=AUXI(NS)+VR(LA)*Q+VI(LA)*WR(M)
+        LA=LA+NUD
+  20    CONTINUE
+        JAC=JAC+LRD
+  21    CONTINUE
+        LA=LE+KRE1
+        DO 23 NS=1,NU
+        VR(LA)=AUXR(NS)
+        VI(LA)=AUXI(NS)
+        LA=LA+NUD
+  23    CONTINUE
+  22    CONTINUE
+  24    CONTINUE
+  25    CONTINUE
+        RETURN
+        END
+
+
+C--------------------------------------------------------------
+C        SUBROUTINE BEM(AK,AKMG,XCR,YCR,KONN,KONBOUN,MBCU,LBCU,
+C     &      NDTYPE,NZTYPE,ZLOAD1,NCOUNT,NHPOS,ZLOAD,ZTEMP,
+C     &      ZLT1,ZLT2,ZLT3,ZLD1,ZLD2,SFDIAG,ZZ1,ZZ2,ZZ3,ZDINTX,
+C     &      ZDINTY,KZON,NODZ,NELZ,NA1,NA2,NA3,N1,N2,N3,N4,N5,N7,N9,
+C     &      LINV,MINV,MBD)
+        SUBROUTINE BEM(AK,AKMG,XCR,YCR,KONN,MBCU,LBCU,
+     &      NDTYPE,NZTYPE,ZLOAD1,NCOUNT,NHPOS,ZLOAD,ZTEMP,
+     &      ZLT1,ZLT2,ZLT3,ZLD1,ZLD2,SFDIAG,ZZ1,ZZ2,ZZ3,ZDINTX,
+     &      ZDINTY,KZON,NODZ,NELZ,NA1,NA2,NA3,N1,N2,N3,N4,N5,N7,N9,
+     &      LINV,MINV,MBD)
+
+C
+C       THE BEM SOLUTION BEGINS HERE
+C
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION XCR(N1),YCR(N1),KONN(N3,N4),MBCU(N2)
+C        DIMENSION NONN(N1,N4)
+        DIMENSION LBCU(N3),NDTYPE(N1)
+        DIMENSION ZLOAD(N2),ZTEMP(N2)
+        DIMENSION NHPOS(N3)
+        DIMENSION ZLOAD1(N5)
+c        DIMENSION ZZ1(N4,N3),ZZ2(N4,N3),ZZ3(N4,N3)
+C        DIMENSION ZZ1(MBD,N4,N3),ZZ2(MBD,N4,N3),ZZ3(MBD,N4,N3)
+        DIMENSION ZZ1(NZONE,N4,N3),ZZ2(NZONE,N4,N3),ZZ3(NZONE,N4,N3)
+
+
+c        DIMENSION ZLT1(N9,N4,N3),ZLT2(N9,N4,N3),ZLT3(N9,N4,N3)
+C        DIMENSION ZLT1(MBD,N9,N4,N3),ZLT2(MBD,N9,N4,N3),
+C     &            ZLT3(MBD,N9,N4,N3)
+        DIMENSION ZLT1(NZONE,N9,N4,N3),ZLT2(NZONE,N9,N4,N3),
+     &            ZLT3(NZONE,N9,N4,N3)
+
+
+
+
+
+
+
+
+
+
+
+
+        DIMENSION ZLD1(N9,N4,N3),ZLD2(N9,N4,N3)
+        DIMENSION LINV(N2),MINV(N2)
+C        DIMENSION NZTYPE(MBD,N1)
+        DIMENSION NZTYPE(NZONE,N1)
+
+
+CC        DIMENSION KONBOUN(MBD,N3,3)
+C        DIMENSION KONBOUN(NZONE,N3,3)
+
+
+C        DIMENSION SFDIAG(N1,2,2)
+        DIMENSION SFDIAG(NZONE,N1,2,2)
+        DIMENSION ZDINTX(N9,NINT),ZDINTY(N9,NINT)
+C&&&&&&&&&&&&&&&&&&&&
+C     NODZ: ARRAY OF INDEXES THAT INDICATE THE ZONE THAT EVERY NODE BELONGS
+C     TOO (IF THERE ARE NOT ZONES IT HAS ZERO VALUES)
+C     NELZ: ARRAY OF INDEXES THAT INDICATE THE ZONE THAT EVERY ELEMENT
+C     BELONGS TOO (IF THERE ARE NOT ZONES IT HAS ZERO VALUES)
+      DIMENSION NODZ(N1),NELZ(N3)
+C&&&&&&&&&&&&&&&&&&&&
+C     CONNECTIVITY ZONE'S ARRAY
+C      DIMENSION KZON(MBD,N3,N4)
+      DIMENSION KZON(NZONE,N3,N4)
+
+
+
+        COMMON/CONTR/NNODE,NELEM,NP
+        COMMON/FREE/NFFS,NFRE
+C       FREQUENCY FOR HARMONIC WAVE
+        COMMON/FREQ/OFREQ
+C       INTERNAL POINTS WITH THEIR CO-ORDINATES
+        COMMON/INTERN/NINT,CINT(10,2)
+
+C&&&&&&&&&&&&&&&&&&&&
+C     COMMON BLOCK FOR ZONES: NZONE IS THE TOTAL NUMBER OF ZONE BOUNDARIES
+C                             =0: NO ZONES, >0: ZONES ARE PRESENT
+      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,5)
+
+C
+        NOD=3
+        ZK=DCMPLX(AK,AKMG)
+C        IF (NCOUNT .EQ. 1) CALL CLRARR(SFDIAG,N1*4)
+        IF (NCOUNT .EQ. 1) CALL CLRARR(SFDIAG,NZONE*N1*4)
+        REWIND 7
+        REWIND 8
+        CALL NMAIN(NCOUNT,ZK,XCR,YCR,KONN,N1,N2,N3,N4,
+     &    SFDIAG,LBCU,NDTYPE,NZTYPE,KZON,NODZ,NELZ,MBD)
+C        CALL PREGENR(NCOUNT,KONN,KONBOUN,KZON,MBCU,ZLOAD,ZTEMP,NA1,
+C     &    NA2,NA3,N1,N2,N3,N4,SFDIAG,LBCU,NDTYPE,NZTYPE,LINV,MINV,
+C     &    MBD,NINNER,NINTERF,NEXTER)
+        CALL PREGENR(NCOUNT,KONN,KZON,MBCU,ZLOAD,ZTEMP,NA1,
+     &    NA2,NA3,N1,N2,N3,N4,SFDIAG,LBCU,NDTYPE,NZTYPE,LINV,MINV,
+     &    MBD,NINNER,NINTERF,NEXTER)
+
+        CALL HOOP(KONN,ZLOAD,ZTEMP,ZLOAD1,NDTYPE,NZTYPE,XCR,YCR,
+     &      NA1,NA2,NA3,N1,N2,N3,N4,N5,ZZ1,ZZ2,ZZ3,ZK,KZON,MBD)
+C         TRACTIONS
+          NP1=NP/3
+          IF(NP1.GT.NA3) NP1=NA3
+
+
+
+
+C         TRACTIONS
+C         LOOP FOR ALL THE ZONES
+          DO 1 K=1,NZONE
+c          IF((K.EQ.1).AND.(NZONE.NE.1)) GO TO 1
+          DO 1 JCL=1,NP1
+C             PROCEED ONLY FOR THE ELEMENTS OF THE ZONE K
+C             SEARCH ARRAY KZON (ZONE K), TO FIND IF ELEMENT JCL IS INCLUDED
+              KZDIAK1=0
+              DO 5 KKK=1,NOD
+                K1=KZON(K,JCL,KKK)
+C               THE ELEMENT JCL IS PART OF THE ZONE K, ONLY IF ALL THE
+C               CONNECTIVITY NODES ARE NOT 0
+                IF(K1.GT.0) KZDIAK1=1
+  5           CONTINUE
+              IF(KZDIAK1.EQ.1) THEN
+
+C           CASE NP=NNODE, RESULTS OF HOOP STRESSES ARE CALCULATED
+C           FOR ALL THE NODES
+            IF(NP1.EQ.NA3) NJ=JCL
+C           CASE NP<NELEM, RESULTS OF HOOP STRESSES FOR SOME ELEMENTS
+            IF(NP1.LT.NA3) NJ=NHPOS(JCL)
+C           LOOP FOR THE 3 NODES OF THE QUADRATIC ELEMENT
+            DO 11 L=1,N4
+c              ZLT1(NCOUNT,L,JCL)=ZZ1(L,NJ)
+c              ZLT2(NCOUNT,L,JCL)=ZZ2(L,NJ)
+c              ZLT3(NCOUNT,L,JCL)=ZZ3(L,NJ)
+              ZLT1(K,NCOUNT,L,JCL)=ZZ1(K,L,NJ)
+              ZLT2(K,NCOUNT,L,JCL)=ZZ2(K,L,NJ)
+              ZLT3(K,NCOUNT,L,JCL)=ZZ3(K,L,NJ)
+
+
+
+
+
+
+  11        CONTINUE
+            ENDIF
+
+
+
+
+
+
+  1       CONTINUE
+
+
+
+
+
+
+
+
+
+
+
+
+C
+C         DISPLACEMENTS
+          DO 82 K=1,NZONE
+c          IF((K.EQ.1).AND.(NZONE.NE.1)) GO TO 82
+
+
+
+
+          DO 2 JCL=1,NA3
+C             PROCEED ONLY FOR THE ELEMENTS OF THE ZONE K
+C             SEARCH ARRAY KZON (ZONE K), TO FIND IF ELEMENT JCL IS INCLUDED
+              KZDIAK1=0
+              DO 51 KKK=1,NOD
+                K1=KZON(K,JCL,KKK)
+C               THE ELEMENT JCL IS PART OF THE ZONE K, ONLY IF ALL THE
+C               CONNECTIVITY NODES ARE NOT 0
+                IF(K1.GT.0) KZDIAK1=1
+  51          CONTINUE
+              IF(KZDIAK1.EQ.1) THEN
+                DO 21 I=1,N4
+                  LN2=KZON(K,JCL,I)
+                  JREF=2*(LN2-1)
+                  ZLD1(NCOUNT,I,JCL)=ZTEMP(JREF+1)
+                  ZLD2(NCOUNT,I,JCL)=ZTEMP(JREF+2)
+  21            CONTINUE
+              ENDIF
+  2       CONTINUE
+  82  CONTINUE
+C^^^^^^^^^^^^^^^^^!!!!!!!!!!!!!!!!
+C       INTERNAL POINTS
+        IF(NINT.GT.0) THEN
+          CALL NMAININT(NCOUNT,ZK,XCR,YCR,KONN,N1,N2,N3,N4,
+     &                     SFDIAG,LBCU,NDTYPE,NZTYPE,MBD)
+          CALL GENRINT(NCOUNT,KONN,MBCU,ZLOAD,ZTEMP,
+     &      ZDINTX,ZDINTY,NA1,NA2,NA3,N1,N2,N3,N4,N9,LBCU,
+     &      NDTYPE,LINV,MINV)
+          REWIND 7
+          REWIND 8
+        ENDIF
+      GO TO 999
+  988 STOP '....Not enough storage for data, aborting...'
+  999 CONTINUE
+
+
+        RETURN
+        END
+C----------------------------------------------------------------------
+C&&&&&&&&&&&&&&&&&&
+      SUBROUTINE NMAIN(NCOUNT,ZK,XCR,YCR,KONN,N1,N2,N3,N4,SFDIAG,
+     &  LBCU,NDTYPE,NZTYPE,KZON,NODZ,NELZ,MBD)
+C
+C     START NODAL COLLOCATION SCHEME AND SUBDIVISION INTO SUBELEMENT
+C
+      IMPLICIT COMPLEX*16 (Z)
+      IMPLICIT REAL*8 (A-H,O-Y)
+      DIMENSION XCR(N1),YCR(N1),KONN(N3,N4)
+C      DIMENSION SFDIAG(N1,2,2)
+      DIMENSION SFDIAG(NZONE,N1,2,2)
+C      DIMENSION MBCU(N2)
+      DIMENSION LBCU(N3),NDTYPE(N1)
+      DIMENSION XY(3,2),LDIR(3),RLNA(3),SHP(3),DSHP(3),RN(2)
+      COMMON/CONTR/NNODE,NELEM,NP
+      COMMON/GAUSS/GPN(10,10),WTN(10,10),GPS(10,10),WTS(10,10)
+      COMMON/FREE/NFFS,NFRE
+C&&&&&&&&&&&&&&&&&&&&
+C     NODZ: ARRAY OF INDEXES THAT INDICATE THE ZONE THAT EVERY NODE BELONGS
+C     TO (IF THERE ARE NOT ZONES IT HAS ZERO VALUES)
+C     NELZ: ARRAY OF INDEXES THAT INDICATE THE ZONE THAT EVERY ELEMENT
+C     BELONGS TOO (IF THERE ARE NOT ZONES IT HAS ZERO VALUES)
+      DIMENSION NODZ(N1),NELZ(N3)
+C&&&&&&&&&&&&&&&&&&&&
+C     COMMON BLOCK FOR ZONES: NZONE IS THE TOTAL NUMBER OF ZONE BOUNDARIES
+C                             =0: NO ZONES, >0: ZONES ARE PRESENT
+C      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+C     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,2)
+      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,5)
+
+C&&&&&&&&&&&&&&&&&&&&
+C     CONNECTIVITY ZONE'S ARRAY
+C      DIMENSION KZON(MBD,N3,N4)
+      DIMENSION KZON(NZONE,N3,N4)
+C      DIMENSION NZTYPE(MBD,N1)
+      DIMENSION NZTYPE(NZONE,N1)
+
+
+C      COMMON/NUMER/NGAUS,NSNG,NCASE,DNONSNG1(10),DNONSNG2(10),
+C     &             NONSNG(10)
+      COMMON/NUMER/NGAUS,NSNG,NCASE,NONSNG(10),DNONSNG1(10),
+     &             DNONSNG2(10)
+
+
+
+      DIMENSION DJUMP(2,2)
+      DATA DJUMP/1.0D0,0.0D0,0.0D0,1.0D0/
+C
+      REWIND 7
+      REWIND 8
+      NOD=3
+C      TOL1=1.0D-02
+C      TOL1=1.0D-03
+      TOL1=1.0D-04
+      TOL2=1.0D-04
+C
+C     LOOP FOR ALL THE ZONES, IN ORDER TO FIND THE KERNELS FOR ALL THE
+C     ZONES SEPARATELLY.
+      DO 24 K=1,NZONE
+C       ***********
+Cc       NUMBER OF ENLOSING BOUNDARIES OF ZONE K
+Cc       IBOUN(K,1) IS THE OUTER BOUNDARY OF ZONE K AND IBOUN(K,2) THE INNER
+c        LO=IBOU(K,1)
+c        LI=IBOU(K,2)
+cC       CASE THAT THE INNER BOUNDARY IS A FREE BOUNDARY
+c        IF(LI.LT.0) LI=-LI
+
+
+
+
+        DO 2 ICL=1,NNODE
+C&&&&&&&&&&&&&&&&&&&
+C         PROCEED ONLY FOR THE NODES OF THE ZONE K
+C         SEARCH ARRAY KZON (ZONE K), TO FIND IF NODE ICL IS INCLUDED
+          KZDIAK=0
+          DO 31 KK=1,N3
+          DO 31 KKK=1,NOD
+            K1=KZON(K,KK,KKK)
+            IF(ICL.EQ.K1) KZDIAK=1
+  31      CONTINUE
+          IF(KZDIAK.EQ.1) THEN
+            XPT=XCR(ICL)
+            YPT=YCR(ICL)
+            DO 3 JCL=1,NELEM
+C&&&&&&&&&&&&&&&&&&&
+C             PROCEED ONLY FOR THE ELEMENTS OF THE ZONE K
+C             SEARCH ARRAY KZON (ZONE K), TO FIND IF ELEMENT JCL IS INCLUDED
+              KZDIAK1=0
+              DO 51 KKK=1,NOD
+                K1=KZON(K,JCL,KKK)
+C               THE ELEMENT JCL IS PART OF THE ZONE K, ONLY IF ALL THE
+C               CONNECTIVITY NODES ARE NOT 0
+                IF(K1.GT.0) KZDIAK1=1
+  51          CONTINUE
+C             FOR ELEMENT JCL, FIND IN WHICH BOUNDARY OF ZONE K BELONGS TOO
+C             (OUTER LO, OR INNER LI)
+              IF(KZDIAK1.EQ.1) THEN
+                DO 4 I=1,NOD
+                  LN=KZON(K,JCL,I)
+                  LDIR(I)=LN
+                  XY(I,1)=XCR(LN)
+                  XY(I,2)=YCR(LN)
+  4             CONTINUE
+C
+C               CHECK FOR SINGULAR ELEMENTS
+C
+                IN=0
+                NSUB=1
+                DO 6 I=1,NOD
+                  RLNA(I)=DSQRT((XY(I,1)-XPT)**2+(XY(I,2)-YPT)**2)
+                  IF (RLNA(I) .LT. TOL1) IN=I
+  6             CONTINUE
+                IF (IN .EQ. 0) GO TO 10
+C
+C               SINGULAR CASE SUBDIVISION
+C
+                 NSUB=NSNG
+C!!!!!!!!!!!!!!!!!!!!!ATTENTION!!!!!!!!!!!!!!!!!!
+CC                NPS=6
+C                NPS=10
+                 NPS=NGAUS
+                KDIAK=0
+C                KZN=0
+                KZN=K
+                CALL INTEGR(NCOUNT,ZK,NPS,ICL,JCL,IN,NSUB,NOD,XPT,
+     &            YPT,XY,SFDIAG,N1,N2,N3,LBCU,NDTYPE,KDIAK,KZN)
+                GO TO 3
+C
+C               NONSINGULAR CASE SUBDIVISION
+C
+  10            CONTINUE
+                RMIN=RLNA(1)
+                DO 7 I=2,NOD
+                  IF (RMIN .GT. RLNA(I)) RMIN=RLNA(I)
+  7             CONTINUE
+
+C!!!!!!!!!!!!!!!!!!!!!ATTENTION!!!!!!!!!!!!!!!!!!
+CC                NGP=6
+C                NGP=10
+c                NGP=NGAUS
+CC    FOR THE ELEMENT'S LENGTH A 6TH ORDER GAUSSIAN IS ENOUGH
+C                NGP=6
+                NGP=NGAUS
+
+                ELEG=0.0D0
+                DO 8 IX=1,NGP
+                  EK=GPN(NGP,IX)
+                  WT=WTN(NGP,IX)
+                  CALL CSHAPE(EK,NOD,XY,SHP,DSHP,RN,DETJ)
+                  ELEG=ELEG+DETJ*WT
+  8             CONTINUE
+C
+                RATIO=RMIN/ELEG
+
+                IF (RATIO .LT. 1.0D0) NSUB=3
+                IF (RATIO .GE. 1.0D0 .AND. RATIO .LE. 2.0D0) NSUB=2
+
+CC!!!!!!!!!!!!!!!!!!!!!ATTENTION!!!!!!!!!!!!!!!!!!
+CC                IF (RATIO .GE. 0.7D0 .AND. RATIO .LT. 1.0D0) NSUB=3
+CC                IF (RATIO .GE. 0.3D0 .AND. RATIO .LT. 0.7D0) NSUB=4
+CC                IF (RATIO .GE. 0.1D0 .AND. RATIO .LT. 0.3D0) NSUB=5
+CC                IF (RATIO .GE. 0.0D0 .AND. RATIO .LT. 0.1D0) NSUB=6
+C                IF (RATIO .GE. 0.7D0 .AND. RATIO .LT. 1.0D0) NSUB=3
+C                IF (RATIO .GE. 0.3D0 .AND. RATIO .LT. 0.7D0) NSUB=5
+C                IF (RATIO .GE. 0.1D0 .AND. RATIO .LT. 0.3D0) NSUB=7
+C                IF (RATIO .GE. 0.05D0 .AND. RATIO .LT. 0.1D0) NSUB=9
+C                IF (RATIO .GE. 0.0D0 .AND. RATIO .LT. 0.05D0) NSUB=12
+                DO III=1,NCASE
+                  D1=DNONSNG1(III)
+                  D2=DNONSNG2(III)
+                  NS=NONSNG(III)
+                  IF (RATIO.GE.D1.AND.RATIO.LT.D2) NSUB=NS
+                END DO
+C
+                ELEG=ELEG/NSUB
+                RAT1=TOL2*ELEG
+                RAT2=ELEG/(4.0D0*RMIN)
+                RPN=0.5D0*DLOG(RAT1)/DLOG(RAT2)+1.0D0
+C               NPN IS THE GAUSSIAN QUADRATURE ORDER
+                NPN=IDINT(RPN)
+                IF (NPN .LT. 2) NPN=2
+                IF (NPN .GT. 10) NPN=10
+                KDIAK=0
+C                KZN=0
+                KZN=K
+                CALL INTEGR(NCOUNT,ZK,NPN,ICL,JCL,IN,NSUB,NOD,XPT,
+     &               YPT,XY,SFDIAG,N1,N2,N3,LBCU,NDTYPE,KDIAK,KZN)
+
+C                CALL INTEGR(NCOUNT,ZK,NPN,ICL,JCL,IN,NSUB,NOD,XPT,
+C     &      YPT,XY,SFDIAG,N1,N2,N3,LBCU,NDTYPE,KDIAK,KZN,NZTYPE,MBD)
+
+              ENDIF
+  3         CONTINUE
+          ENDIF
+  2     CONTINUE
+  24  CONTINUE
+      RETURN
+      END
+
+C----------------------------------------------------------------------
+        SUBROUTINE NMAININT(NCOUNT,ZK,XCR,YCR,KONN,N1,N2,N3,N4,
+     &                   SFDIAG,LBCU,NDTYPE,NZTYPE,MBD)
+C
+C       START NODAL COLLOCATION SCHEME AND SUBDIVISION INTO SUBELEMENT
+C
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION XCR(N1),YCR(N1),KONN(N3,N4)
+C        DIMENSION SFDIAG(N1,2,2)
+        DIMENSION SFDIAG(NZONE,N1,2,2)
+C        DIMENSION NZTYPE(MBD,N1)
+        DIMENSION NZTYPE(NZONE,N1)
+
+
+
+C        DIMENSION MBCU(N2)
+        DIMENSION LBCU(N3),NDTYPE(N1)
+        DIMENSION XY(3,2),LDIR(3),RLNA(3),SHP(3),DSHP(3),RN(2)
+C        COMMON/CONTR/NNODE,NELEM,NTINT,NP
+        COMMON/CONTR/NNODE,NELEM,NP
+        COMMON/GAUSS/GPN(10,10),WTN(10,10),GPS(10,10),WTS(10,10)
+        COMMON/FREE/NFFS,NFRE
+C       INTERNAL POINTS WITH THEIR CO-ORDINATES
+        COMMON/INTERN/NINT,CINT(10,2)
+
+C&&&&&&&&&&&&&&&&&&&&
+C     COMMON BLOCK FOR ZONES: NZONE IS THE TOTAL NUMBER OF ZONE BOUNDARIES
+C                             =0: NO ZONES, >0: ZONES ARE PRESENT
+C      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+C     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,2)
+      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,5)
+
+        NOD=3
+        TOL1=1.0D-02
+        TOL2=1.0D-04
+C
+        DO 2 IIN=1,NINT
+C^^^^^^^^^!!!!!!!!!!!
+C        DO 2 ICL=1,NNODE
+         ICL=IIN
+C       LOOP FOR ALL THE INTERNAL NODES
+CC^^^^^^^^^^^^^^^^^^!!!!!!!!!!!!!!!!
+CC       IGNORE NODES OF THE ENCLOSING ELEMENTS BOUNDARY
+C        IF(NDTYPE(ICL).EQ.4) GO TO 2
+C        XPT=XCR(ICL)
+C        YPT=YCR(ICL)
+C       SOURCE NODE IS THE INTERNAL POINT NOW
+        XPT=CINT(IIN,1)
+        YPT=CINT(IIN,2)
+        DO 3 JCL=1,NELEM
+        DO 4 I=1,NOD
+        LN=KONN(JCL,I)
+        LDIR(I)=LN
+        XY(I,1)=XCR(LN)
+        XY(I,2)=YCR(LN)
+  4     CONTINUE
+C        LN2=KONN(JCL,2)
+C
+C       CHECK FOR SINGULAR ELEMENTS
+C
+        IN=0
+        NSUB=1
+        DO 6 I=1,NOD
+        RLNA(I)=DSQRT((XY(I,1)-XPT)**2+(XY(I,2)-YPT)**2)
+        IF (RLNA(I) .LT. TOL1) IN=I
+  6     CONTINUE
+        IF (IN .EQ. 0) GO TO 10
+C
+C       SINGULAR CASE SUBDIVISION
+C
+        NSUB=4
+        NPS=6
+        KDIAK=1
+C&&&&&&&&&&&&&&&&&&&&&&&&&
+        KZN=0
+        CALL INTEGR(NCOUNT,ZK,NPS,ICL,JCL,IN,NSUB,NOD,XPT,
+     &    YPT,XY,SFDIAG,N1,N2,N3,LBCU,NDTYPE,KDIAK,KZN)
+        GO TO 3
+C
+C       NONSINGULAR CASE SUBDIVISION
+C
+  10    CONTINUE
+        RMIN=RLNA(1)
+        DO 7 I=2,NOD
+        IF (RMIN .GT. RLNA(I)) RMIN=RLNA(I)
+  7     CONTINUE
+C
+        NGP=6
+        ELEG=0.0D0
+        DO 8 IX=1,NGP
+        EK=GPN(NGP,IX)
+        WT=WTN(NGP,IX)
+        CALL CSHAPE(EK,NOD,XY,SHP,DSHP,RN,DETJ)
+        ELEG=ELEG+DETJ*WT
+  8     CONTINUE
+C
+        RATIO=RMIN/ELEG
+        IF (RATIO .LT. 1.0D0) NSUB=3
+        IF (RATIO .GE. 1.0D0 .AND. RATIO .LE. 2.0D0) NSUB=2
+C
+        ELEG=ELEG/NSUB
+        RAT1=TOL2*ELEG
+        RAT2=ELEG/(4.0D0*RMIN)
+        RPN=0.5D0*DLOG(RAT1)/DLOG(RAT2)+1.0D0
+        NPN=IDINT(RPN)
+        IF (NPN .LT. 2) NPN=2
+        IF (NPN .GT. 10) NPN=10
+        KDIAK=1
+C        KZN=0
+        KZN=1
+        CALL INTEGR(NCOUNT,ZK,NPN,ICL,JCL,IN,NSUB,NOD,XPT,
+     &       YPT,XY,SFDIAG,N1,N2,N3,LBCU,NDTYPE,KDIAK,KZN)
+
+  3     CONTINUE
+  2     CONTINUE
+        RETURN
+        END
+
+C---------------------------------------------------------------
+CC&&&&&&&&&&&&&&&&&&&&
+        SUBROUTINE INTEGR(NCOUNT,ZK,NGP,ICL,JCL,IN,NSUB,NOD,
+     &    XPT,YPT,XY,SFDIAG,N1,N2,N3,LBCU,NDTYPE,KDIAK,KZN)
+C
+C       FORMATION OF 2*2 SUBMATRICES VIA NUMERICAL INTEGRATION
+C
+C   KDIAK=0: CALCULATE SFDIAG
+C   KDIAK=1: DON'T CHANGE SFDIAG
+C   KZN    : NUMBER OF EXAMINING ZONE, IT IS 1 IF ONLY ONE ZONE EXISTS (NO ZONES)
+CC   KZN  =0: INTEGRATION WITHOUT ZONES (DEFAULT MATERIAL PROPERTIES)
+CC   KZN  >0: INTEGRATION INSIDE THE ZONE KZN (ZONE WITH DIFFERENT MATERIAL
+C            THAN THE SURROUNDING)
+        IMPLICIT COMPLEX*16 (Z)
+        IMPLICIT REAL*8 (A-H,O-Y)
+        DIMENSION SKT(3,2,2),SU(2,2),ST(2,2)
+C        DIMENSION SFDIAG(N1,2,2)
+        DIMENSION SFDIAG(NZONE,N1,2,2)
+
+        DIMENSION XY(3,2),YX(3,2),SHP(3),DSHP(3),RN(2)
+        DIMENSION ZKU(3,2,2),ZKT(3,2,2),ZU(2,2),ZT(2,2),X(2),Y(2)
+C        DIMENSION MBCU(N2)
+        DIMENSION LBCU(N3),NDTYPE(N1)
+C
+        COMMON/GAUSS/GPN(10,10),WTN(10,10),GPS(10,10),WTS(10,10)
+        COMMON/FREE/NFFS,NFRE
+C     COMMON BLOCK FOR ZONES: NZONE IS THE TOTAL NUMBER OF ZONE BOUNDARIES
+C                             =0: NO ZONES, >0: ZONES ARE PRESENT
+C      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+C     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,2)
+      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,5)
+
+
+C      DIMENSION NZTYPE(MBD,N1)
+C
+        CALL CLRARR(YX,6)
+        CALL CLRZRR(ZKU,12)
+        CALL CLRZRR(ZKT,12)
+        CALL CLRARR(SKT,12)
+        DO 10 IS=1,NSUB
+        DO 10 IX=1,NGP
+        IF (IN .GT. 0) GO TO 40
+C
+C       NONSINGULAR CASE
+C
+        EK=GPN(NGP,IX)
+        WT=WTN(NGP,IX)
+        GO TO 41
+C
+C       SINGULAR CASE
+C
+  40    EK=GPN(NGP,IX)
+        WT=WTN(NGP,IX)
+  41    CONTINUE
+C
+C       START AT LINEAR SUBELEMENT LEVEL
+C
+        RINC=2.0D0/DFLOAT(NSUB)
+        YX(1,1)=-1.0D0+RINC*DFLOAT(IS-1)
+        YX(2,1)=YX(1,1)+RINC
+        CALL CSHAPE(EK,2,YX,SHP,DSHP,RN,DETJ1)
+C
+C       CONTINUE WITH LOCAL QUADRATIC ELEMENT LEVEL
+C
+        EKS=0.0D0
+        DO 11 I=1,2
+        EKS=EKS+YX(I,1)*SHP(I)
+  11    CONTINUE
+C
+        CALL CSHAPE(EKS,NOD,XY,SHP,DSHP,RN,DETJ2)
+        DETJ=DETJ1*DETJ2
+C
+C       NOW AT GLOBAL QUADRATIC ELEMENT LEVEL
+C
+        XG=0.0D0
+        YG=0.0D0
+        DO 12 I=1,NOD
+        XG=XG+XY(I,1)*SHP(I)
+        YG=YG+XY(I,2)*SHP(I)
+  12    CONTINUE
+        X(1)=XG
+        X(2)=YG
+        Y(1)=XPT
+        Y(2)=YPT
+C&&&&&&&&&&&&&&
+C        CALL KERNEL2(ZU,ZT,X,Y,RN,ZK)
+        CALL KERNEL2(ZU,ZT,X,Y,RN,ZK,KZN)
+C
+C        CALL ZERNEL(XPT,YPT,XG,YG,RN,SU,ST)
+        CALL ZERNEL(XPT,YPT,XG,YG,RN,SU,ST,KZN)
+cC       IGNORE ELEMENTS OF THE ENCLOSING ELEMENTS BOUNDARY
+c        IF(LBCU(JCL).EQ.4) THEN
+c          DO 61 II=1,2
+c            DO 61 JJ=1,2
+c              ZU(II,JJ)=DCMPLX(0.0D0,0.0D0)
+c              SU(II,JJ)=0.0D0
+c              ZT(II,JJ)=DCMPLX(0.0D0,0.0D0)
+c  61      CONTINUE
+c        ENDIF
+C
+        IF (IN .NE. 0) GO TO 18
+C
+C       NUMERICAL INTEGRATION - NONSINGULAR CASE
+C
+        DO 16 K1=1,NOD
+        AMUL=SHP(K1)*DETJ*WT
+        DO 17 K2=1,2
+        DO 17 K3=1,2
+        ZKU(K1,K2,K3)=ZKU(K1,K2,K3)+ZU(K2,K3)*AMUL
+        ZKT(K1,K2,K3)=ZKT(K1,K2,K3)+ZT(K2,K3)*AMUL
+        IF (NCOUNT .EQ. 1)
+     &    SKT(K1,K2,K3)=SKT(K1,K2,K3)+ST(K2,K3)*AMUL
+  17    CONTINUE
+  16    CONTINUE
+        GO TO 10
+  18    CONTINUE
+C
+C       NUMERICAL INTEGRATION - SINGULAR CASE
+C
+        DO 19 K1=1,NOD
+        AMUL=SHP(K1)*DETJ*WT
+        DO 20 K2=1,2
+        DO 20 K3=1,2
+        ZKU(K1,K2,K3)=ZKU(K1,K2,K3)+ZU(K2,K3)*AMUL
+        IF (K1 .EQ. IN) GO TO 21
+        SKT(K1,K2,K3)=SKT(K1,K2,K3)+ST(K2,K3)*AMUL
+        ZKT(K1,K2,K3)=ZKT(K1,K2,K3)+ZT(K2,K3)*AMUL
+        GO TO 20
+  21    ZKT(K1,K2,K3)=ZKT(K1,K2,K3)+
+     &          (ZT(K2,K3)-ST(K2,K3))*AMUL
+
+   20    CONTINUE
+  19    CONTINUE
+  10    CONTINUE
+C
+C       SUBMATRICES ARE STORED ON TAPES FOR LATER ASSEMBLY
+C
+        DO 28 K1=1,NOD
+        WRITE(7,*) ((ZKU(K1,K2,K3),K2=1,2),K3=1,2)
+  28    CONTINUE
+        DO 29 K1=1,NOD
+        WRITE(8,*) ((ZKT(K1,K2,K3),K2=1,2),K3=1,2)
+  29    CONTINUE
+C
+C       DIAGONAL TERMS
+        IF (NCOUNT .GT. 1) RETURN
+        IF(KDIAK.EQ.1) RETURN
+        DO 30 K1=1,NOD
+        IF (K1 .EQ. IN) GO TO 30
+        DO 31 K2=1,2
+        DO 31 K3=1,2
+          SFDIAG(KZN,ICL,K2,K3)=SFDIAG(KZN,ICL,K2,K3)-SKT(K1,K2,K3)
+C          SFDIAG(ICL,K2,K3)=SFDIAG(ICL,K2,K3)-SKT(K1,K2,K3)
+  31    CONTINUE
+  30    CONTINUE
+        RETURN
+        END
+
+C----------------------------------------------------------------------
+C      SUBROUTINE SOLVE(ZLOAD,ZTEMP,ZA,ZB,MBCU,NINNER,NINTERF,NEXTER,
+C     &  NDTYPE,N1,N2,NCOUNT,NND1,NND2,NND3)
+      SUBROUTINE SOLVE(ZLOAD,ZTEMP,ZA,ZB,ZD,ZTEMP1,ZLOAD1,LINV,MINV,
+     &    MBCU,NINNER,NINTERF,NEXTER,NINNER1,NDTYPE,N1,N2,NCOUNT,
+     &    NND1,NND2,NND3)
+
+C
+      IMPLICIT COMPLEX*16 (Z)
+      IMPLICIT REAL*8 (A-H,O-Y)
+C      COMPLEX*16 ZD[ALLOCATABLE](:)
+C      COMPLEX*16 ZTEMP1[ALLOCATABLE](:)
+C      COMPLEX*16 ZLOAD1[ALLOCATABLE](:)
+C      INTEGER LINV[ALLOCATABLE](:)
+C      INTEGER MINV[ALLOCATABLE](:)
+      DIMENSION ZLOAD(N2),ZTEMP(N2)
+      DIMENSION MBCU(N2)
+      DIMENSION NDTYPE(N1)
+      DIMENSION ZA(NND1,NND2),ZB(NND1,NND3)
+
+      DIMENSION ZD(NND1)
+      DIMENSION ZTEMP1(2*NINNER1)
+      DIMENSION ZLOAD1(NND1)
+      DIMENSION LINV(NND1)
+      DIMENSION MINV(NND1)
+
+
+      COMMON/MATER/RLA,RMU,RNU,RHO,C1,C2,TIM,FVISC,NMODE
+      COMMON/CONTR/NNODE,NELEM,NP
+C&&&&&&&&&&&&&&&&&&&&
+C     COMMON BLOCK FOR ZONES: NZONE IS THE TOTAL NUMBER OF ZONE BOUNDARIES
+C                             =0: NO ZONES, >0: ZONES ARE PRESENT
+C      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+C     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,2)
+      COMMON/RZON1/NZONE,RZLA(5),RZMU(5),RZNU(5),RZHO(5),CZ1(5),
+     &             CZ2(5),FZVISC(5),NZMODE(5),IBOU(5,5)
+
+CC
+C      NINNER1=NINNER
+CC     CASE OF EXISTENCE OF FREE SURFACE
+C      IF(NEXTER.NE.0) NINNER1=NINNER+NEXTER
+C
+C     CASE OF EXISTENCE OF FREE SURFACE
+
+C
+C      ALLOCATE(ZD(NND1),STAT=IERR)
+C      IF(IERR.NE.0) GO TO 988
+C      ALLOCATE(ZTEMP1(2*NINNER1),STAT=IERR)
+C      IF(IERR.NE.0) GO TO 988
+C      ALLOCATE(ZLOAD1(NND1),STAT=IERR)
+C      IF(IERR.NE.0) GO TO 988
+CC
+C      ALLOCATE(LINV(NND1),STAT=IERR)
+C      IF(IERR.NE.0) GO TO 988
+C      ALLOCATE(MINV(NND1),STAT=IERR)
+C      IF(IERR.NE.0) GO TO 988
+C
+
+      NNT2=NND1*NND3
+C     IN CASE OF ONLY ONE ZONE
+      IF(NZONE.EQ.1) THEN
+        CALL GENRONE(NCOUNT,KONN,MBCU,ZB,ZA,ZLOAD,ZTEMP,N1,N2,N3,N4,
+     &                NDTYPE,LINV,MINV)
+        GO TO 41
+      ENDIF
+C
+C     SCALING FACTOR THE MAXIMUM MU
+      GSCALE=0.0D0
+      DO II=1,NZONE
+C        GSCALE=RMU
+        GSCALE1=RZMU(II)
+        IF(GSCALE1.GT.GSCALE) GSCALE=GSCALE1
+      END DO
+C
+C     READ LOADS IN LAPLACE TRANSFORM DOMAIN
+C
+      READ(3,*) ZLOAD
+      NNT2L=NND1
+      NNT2C=2*NINNER1
+      CALL CLRZRR(ZTEMP1,NNT2C)
+      II1=0
+      DO II=1,NNODE
+C       FOR THE NODES OF AN INNER ZONE'S BOUNDARY (NDTYPE=6)
+C       FOR THE NODES OF AN INNER FREE ZONE'S BOUNDARY (NDTYPE=7)
+        IF((NDTYPE(II).EQ.7).OR.(NDTYPE(II).EQ.2)
+     &      .OR.(NDTYPE(II).EQ.9))THEN
+          II1=II1+1
+          IROW1=2*(II1-1)
+          IROW=2*(II-1)
+          DO I=1,2
+            ZTEMP1(IROW1+I)=ZLOAD(IROW+I)/GSCALE
+          END DO
+        ENDIF
+      END DO
+
+C     ZB[NNT2L,NNT2C],  ZTEMP1[NNT2C],  ZD[NNT2L]
+      CALL ZAPROD(ZB,ZTEMP1,NNT2L,NNT2C,ZD)
+
+C        DO III1=1,NND2
+C          WRITE(6,848) III1
+C  848     FORMAT(/2X,' COL',I3)
+C          WRITE(6,846)
+C  846     FORMAT(/2X,'-----')
+C          DO II1=1,NND1
+C            WRITE(6,844) II1,ZA(II1,III1)
+C  844       FORMAT(2X,' ROW',I3,E12.6,E12.6)
+C          END DO
+C        END DO
+C
+C        DO II1=1,NND1
+C          WRITE(6,848) II1
+C  848     FORMAT(/2X,' ROW ',I3)
+C          WRITE(6,846)
+C  846     FORMAT(/2X,'-----')
+CCC          DO III1=1,NND2
+CC          DO III1=79,NND2
+CC            WRITE(6,844) III1,ZA(II1,III1)
+CC  844       FORMAT(2X,' COL',I3,E12.6,E12.6)
+C            WRITE(6,844) (ZA(II1,III1),III1=1,NND2)
+CC  844       FORMAT(2X,I3,E12.6,E12.6)
+CC  844       FORMAT(2X,86(E9.3,E9.3))
+C  844       FORMAT(2X,86(E9.3))
+C        END DO
+CC        DO II1=1,NND1
+CC          DO III1=1,NND2
+CC            WRITE(6,844)(ZA(II1,III1),III1=1,NND2)
+CC  844       FORMAT(2X,13(E9.3,E9.3))
+CC          END DO
+CC        END DO
+C
+
+
+
+
+
+
+      CALL ZMINV(ZA,NNT2L,LINV,MINV)
+      CALL ZVPROD(ZA,ZD,NNT2L,ZLOAD1)
+C     EXTRACT DISPLACEMENTS (IN ZTEMP)
+      II1=0
+      DO 81 II=1,NNT2L
+        IF(II.LE.2*NNODE) THEN
+          II1=II1+1
+          ZTEMP(II1)=ZLOAD1(II)
+        ENDIF
+  81  CONTINUE
+C     EXTRACT TRACTIONS IN ZLOAD. FOR THE INNER FREE SURFACE BOUNDARY THE
+C     LOADS HAVE BEEN READ FROM FILE 3
+      II1=0
+      NF1=0
+      DO 83 II=1,NNODE
+        IF((NDTYPE(II).EQ.2).OR.(NDTYPE(II).EQ.7).OR.
+     &      (NDTYPE(II).EQ.9)) THEN
+          NF1=NF1+1
+        ENDIF
+
+        IF((NDTYPE(II).EQ.8).OR.(NDTYPE(II).EQ.6)) THEN
+C          II1=II1+1
+C          IROW1=2*NNODE+2*(II-1)
+          IROW1=2*NNODE+2*(II-NF1-1)
+
+          IROW=2*(II-1)
+          DO I=1,2
+            ZLOAD(IROW+I)=ZLOAD1(IROW1+I)*GSCALE
+          END DO
+      ENDIF
+  83  CONTINUE
+  41  CONTINUE
+C
+C       PRINTING OF TRACTIONS AND DISPLACEM. IN LAPLACE TRANSFORM DOMAIN
+C
+        WRITE(6,101) NCOUNT
+        WRITE(6,103) (ZLOAD(I),I=1,N2)
+        WRITE(6,102) NCOUNT
+        WRITE(6,103) (ZTEMP(I),I=1,N2)
+  100   FORMAT(//2X,' LOADING AT STEP=',I3)
+  101   FORMAT(//2X,' TRACTIONS AT STEP=',I3)
+  102   FORMAT(//2X,' DISPLACEMENTS AT STEP=',I3)
+  103   FORMAT(8(2X,E12.6))
+  110   FORMAT(//2X,' FREE FIELD CALCULATIONS (1ST STEP)')
+  115   FORMAT(//2X,' FREE FIELD CALCULATIONS (2ND STEP)')
+  120   FORMAT(//2X,' SCATTERED FIELD CALCULATIONS ')
+CC
+C        DEALLOCATE (ZD,STAT=IERR)
+C        IF(IERR.NE.0) GO TO 988
+C        DEALLOCATE (LINV,STAT=IERR)
+C        IF(IERR.NE.0) GO TO 988
+C        DEALLOCATE (MINV,STAT=IERR)
+C        IF(IERR.NE.0) GO TO 988
+C        DEALLOCATE (ZTEMP1,STAT=IERR)
+C        IF(IERR.NE.0) GO TO 988
+C        DEALLOCATE (ZLOAD1,STAT=IERR)
+C        IF(IERR.NE.0) GO TO 988
+C      GO TO 999
+C  988 STOP '....Not enough storage for data, aborting...'
+C  999 CONTINUE
+      RETURN
+      END

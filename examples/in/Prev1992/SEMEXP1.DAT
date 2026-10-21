@@ -1,0 +1,30 @@
+TITLE
+2D,L.D.,simi-infinity,circle,explosion point P wave, no decay,solution by refl 
+* types of harmonic waves
+TYPE.PROBLEM
+DOMAIN ANALYSIS 
+   1      1 
+SECTION.TYPE
+BOUNDARIES
+    2
+SHAPE REGION ELEMENTS GEOMETRY
+  1     1       8      2.5
+ -1     4       8      8.0 5.0 -8.0 5.0
+MATERIAL.PROPERTIES
+  E       NU    RO
+20000.0  0.25  2.55
+STEP.NUMBER
+   20
+TIME.TOTAL
+  0.015
+LOAD.STRESSES
+EXPLOSION.POINT
+XE   YE  W     N    F   DECAY 
+8.0 0.0 188.7 2.75 1.0   0 
+FREE.FIELD.STRESSES
+  1  
+PLOTS
+ 2 5 12 21 22 28 29 30
+NODE.PLOTS
+ 1 2 4 9 11 13 15 25
+END

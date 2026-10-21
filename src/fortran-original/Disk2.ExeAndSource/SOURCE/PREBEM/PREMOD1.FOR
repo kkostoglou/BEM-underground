@@ -1,0 +1,1469 @@
+C -----------------------------------------------------------------
+      SUBROUTINE MODULES(MMBCU,NHPOS,SEG,NCELE,JKODE,JP1,NSHAP,
+     &  NSEGM,NELEMB,NNODEB,RSTRE,RNSTRE,RNORM,NBOUN,
+     &  NANAL,NTSG,RYOUN,RPOIS,RDENS,RTIME,RANGL,RPX,RPY,
+     &  LWAV,RSIGC,RFM,RFS,NTOT,NPLOT,NDTOT,NDPLOT,LETOT,LEPLOT,
+     &  KEXPL,KSURF,PSURFX,PSURFY,KTRAC,TRACX,TRACY,MST,MND,MEL,
+     &  MBD,MPL,MDM,N8,INES,SGTYP,MSG,MIN)
+
+
+C     CONTROLS THE INPUT OF THE DATA VIA THE MODULUS AND SUBMODULUS
+C
+C
+C      PARAMETER(MST=200,MND=100,MEL=50,MBD=5,MPL=10,MZN=5,MDM=2)
+C      PARAMETER(MST=20,MND=16,MEL=32,MBD=1,MPL=30,MZN=1,MDM=2,n8=5)
+C           INES : INDEX 0: NUMBER OF ELEMENTS IN A SEGMENT WERE 0
+C                        1: THERE WERE NOT 0 NUMBER OF ELEMENTS IN ANY SEGMENT
+      COMMON/BLK20/DATE,TIME,SNAME,FNAMEIN,FNAMEPRE,
+     &             FNAMEPRO,FNAMEPOS
+      COMMON/MATER/RLA,RMU,RNU,RHO,C1,C2,TIM,FVISC,NMODE
+      COMMON/BLKEX/IEXIT
+      COMMON/GEOM2/RAD,RATIO,SID,XSID,YSID,XSTA,YSTA,XLAS,YLAS,
+     &             XCR0,YCR0,TYPELX,TYPELY,NDIS
+      COMMON/GEOM3/FAI,PSAI
+      COMMON/GEOM4/NXELE,NYELE
+      COMMON/FREE/NFFS,NSIMU
+C     ***** MAXIMUM: (MEL) ELEMENTS, (MND) NODES, (MST) TIME STEPS****
+C     ***** MAXIMUM (MBD) BOUNDARIES , (MDM) DIMENSIONS OF THE PROBLEM (2 D)***
+      DIMENSION MMBCU(MND*MDM)
+      DIMENSION NHPOS(MEL)
+      DIMENSION SEG(MEL*7),NCELE(MEL)
+      DIMENSION JKODE(MEL)
+      DIMENSION JP1(N8)
+      DIMENSION NSHAP(MBD),NSEGM(MBD)
+      DIMENSION NELEMB(MBD),NNODEB(MBD)
+      DIMENSION NDPLOT(MND),LEPLOT(2*MND)
+C
+C     CHANGING MBD IN MAIN PROGRAM, NUMBER 5 MUST BE CHANGED TO NBD ALSO
+      DIMENSION RAD(5),RATIO(5),SID(5),XSID(5),YSID(5)
+      DIMENSION XCR0(5),YCR0(5),PSAI(5)
+      DIMENSION NXELE(5),NYELE(5)
+      DIMENSION NSIMU(5)
+      DIMENSION XSTA(5),YSTA(5),XLAS(5),YLAS(5),TYPELX(5),
+     &     TYPELY(5),NDIS(5)
+C
+      DIMENSION KEYW(18)
+      DIMENSION SKEYW(59)
+      DIMENSION NPLOT(MPL)
+      DIMENSION SGTYP(MSG)
+      DIMENSION PSURFX(MEL),PSURFY(MEL)
+      DIMENSION TRACX(MND),TRACY(MND)
+      REAL*8 SGTYP
+      REAL*8 PSURFX,PSURFY
+      REAL*8 TRACX,TRACY
+C
+      CHARACTER FNAMEIN*14,FNAMEPRE*14,DATE*35
+      CHARACTER FNAMEPRO*14,FNAMEPOS*14
+      CHARACTER TIME*15,SNAME*35
+      CHARACTER SKEYW*4,KEYW*4,MKEYW*4
+      REAL*8 RLA,RMU,RNU,RHO,C1,C2,TIM
+      REAL*8 RAD,SID,XSID,YSID,RATIO,XCR0,YCR0
+      REAL*8 XSTA,YSTA,XLAS,YLAS,TYPELX,TYPELY
+      REAL*8 FAI,PSAI,SEG
+      REAL*8 FVISC
+      CHARACTER COMENT*1
+      LOGICAL OK
+      DATA  KEYW/'TITL','TYPE','SECT','MATE','STEP','TIME',
+     &           'HOOP','TOPO','PRES','LOAD','END' ,'FAIL',
+     &           'FREE','SIMU','PLOT','NODE','ELEM','INTE'/
+      DATA SKEYW/'DOMA','ANAL','REGI','SHAP','ELEM','YELE',
+     &           'GEOM','E'   ,'MU'  ,'NU'  ,'RO'  ,'TOTA',
+     &		 'POSI','PRES','FIRS','MIDD','LAST','P',
+     &           'SV'  ,'AXIS','COND','LONG','TRAN','ANGL',
+     &           'PX'  ,'PY'  ,'BOUN','VISC','MODE','SIGC',
+     &           'M '  ,'S'   ,'XDIS','YDIS','VERT','PLAN',
+     &           'EXPL','XE'  ,'YE'  ,'W'   ,'N'   ,'F'   ,
+     &           'UNIT','DECA','B'   ,'N1'  ,'FORM','INSI',
+     &           'HARM','FREQ','XI'  ,'YI'  ,'SURF','XPRE',
+     &           'YPRE','TRAC','XTRA','YTRA','NODE'/
+C
+      COMENT='*'
+      TOL=1.0E-11
+      PI=3.14159265359
+C ------------------------
+C   INITIATE CONTROL CODES
+C ------------------------
+      IEXIT=0
+C ----------------------------------
+C   SET THE DEFAULT VALUES FOR THE PROBLEM
+C ----------------------------------
+      CALL DEFAULT(NANAL,NSHAP,RANGL,NNODEB,NELEMB,NBOUN,RSIGC,
+     &  NPLOT,RFM,RFS,LWAV,RSTRE,RNSTRE,RNORM,MPL,MBD,SGTYP,
+     &  PSURFX,PSURFY,TRACX,TRACY,MSG,MEL,MND)
+C---------------------------------------------------------
+C  OPEN FILES FOR READ-WRITE
+C  THE DATA FILES OF THE MAIN BEM PROGRAM ARE OPENED LATER
+C---------------------------------------------------------
+C     CHECK FOR THE EXISTANCE OF THE INPUT FILE
+      INQUIRE(FILE=FNAMEIN,EXIST=OK)
+      IF(.NOT.OK) THEN
+        IEXIT=1
+        WRITE(*,524)
+        GO TO 991
+      ENDIF
+      OPEN(6,FILE=FNAMEPRE,STATUS='UNKNOWN')
+      OPEN(7,FILE=FNAMEIN,STATUS='OLD')
+      REWIND 7
+      REWIND 6 
+C
+C
+C -------------------
+C   READ COMMAND CARD
+C -------------------
+C     WHEN IREAD=0 THEN SUBROUTINE READER READS A NEW LINE FROM THE 
+C     DATA FILE
+  111 IREAD=0
+C     READ THE COMAND TITLE
+C     INDEX FOR COMENT LINE (KCOM=1 WHEN * IS THE FIRST CHARACTER IN THE
+C     LINE (COMENT)
+      KCOM=0
+      CALL READFIR(MKEYW,KCOM)
+      IF(KCOM.EQ.1) GO TO 111
+C     
+C ------------------------------------
+C   CHECK IF TITLES IS COMENT ('*' CHARACTER)
+C ------------------------------------
+C      IF(MKEYW(1).EQ.COMENT) GO TO 111
+C ------------------------------------
+C   CHECK IF TITLES IS INITIAL COMMAND
+C ------------------------------------
+      IF (ITITLE.EQ.1) GO TO 26
+      IF(MKEYW.EQ.KEYW(1)) GO TO 24
+C ***   WRITE(*,522)
+        WRITE(6,522)
+        IEXIT=1
+   24 ITITLE=1
+C -----------------------------------------------
+C   MATCH THE REST OF COMMANDS WITH A DIRECTIVE AND EXECUTE IT
+C -----------------------------------------------
+   26 DO 122 IL=1,18
+C -------------------
+C   READ COMMAND CARD
+C -------------------
+  112 FORMAT(A4)
+       IF(MKEYW.EQ.KEYW(IL))GO TO
+     &    (1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18),IL
+  122 CONTINUE
+C ----------------------------------------------------
+C   TERMINATE EXECUTION IF ILLEGAL COMMAND ENCOUNTERED
+C-----------------------------------------------------
+      WRITE(*,101)MKEYW
+      WRITE(6,101)MKEYW
+  101 FORMAT(1H1,/
+     &		10X,'*****************************************'/
+     &		10X,'******  ',A6,'  - ILLEGAL COMMAND  ******'/
+     &		10X,'*****************************************'/)
+      WRITE(*,102)(KEYW(IL),IL=1,18)
+      WRITE(6,102)(KEYW(IL),IL=1,18)
+  102 FORMAT(//,10X,'LEGAL COMMANDS - ',A4,/,(27X,A4))
+      CALL QUIT
+C ---------------------------------------------------------
+C  MODULE: TITLE, READ THE TITLES OF THE PROBLEM
+C----------------------------------------------------------
+    1 CALL TITLES
+      GO TO 111
+C
+C ----------------------------------------------------------------
+C  MODULE : TYPE, READ THE TYPE OF THE PROBLEM. IF THIS MODULE IS NOT PRESENT
+C           THEN AUTOMATICLY COLLECTS THE DEFAULT VALUE.
+C           NDOMAIN 1: LAPLACE TRANSFORM DOMAIN (LTD) (ELASTODYNAMIC CASE)
+C                   2: TIME DOMAIN (TD) (ELASTODYNAMIC CASE)
+C                   3: ELASTOSTATIC CASE
+C                   DEAFULT: 1
+C           NANAL   1: PLANE STRAIN
+C                   2: PLANE STRESS
+C                   DEAFULT: 1
+C       UNITS:    THIS SUBMODULUS IS NOT NECESSERY. IF IS OMITED THE 
+C                 DEFAULT VALUE IS 0
+C                 0: SI INTERNATIONAL SYSTEM UNITS (M)
+C                 1: IMPERIAL SYSTEM UNITS (FT)
+C                 THE PROGRAM IS NOT DEPENDING ON THE UNITS, EXCEPT FROM THE
+C                 PART THAT REFERS TO EXPLOSION POINT WAVE.
+C                 SO IT IS RESPONSIBILITY OF THE USER TO USE ANY UNITS, THAT 
+C                 ARE IN AGREEMENT WITH THE LENGTH UNITS IN MODULUS SECTION.TYPE 
+C                 AND THE MATERIAL PROPERTIES IN MODULUS MATERIAL.PROPERTIES.
+C                 BUT IN THE CASE THAT AN EXPLOSION POINT WAVE IS ANALYZING, 
+C                 THE UNITS MUST BE ONE AS IN THE SUBMODULUS ARE PRESCRIBED.
+C                 ANYWAY, IT IS SUGESTED TO USE THE UNITS THAT ARE PRESCRIBED 
+C                 IN THESE TWO SUBMODULUS.
+C ----------------------------------------------------------------
+    2 CALL TYPEMOD(SKEYW,NANAL,MBD)
+      GO TO 111
+C
+C ----------------------------------------------------------------
+C  MODULE : SECT, READ THE NUMBER OF THE TYPE OF SECTION
+C                     1: CIRCLE, ELLIPSE
+C                     2: SQUARE
+C                     3: RECTANGLE
+C                    -K: ANY SECTION, K IS THE NUMBER OF SEGMENTS
+C           THE SUB-MODULUS SHAPE MUST BE READ FIRST
+C           FOR CIRCLE, ELLIPSE:
+C               IF RR(1)=0 OR 1 THEN CIRCLE, OTHERWISE ELLIPSE(SEMIAXIS)
+C           JKODE: CODE NUMBERS FOR COMBOUND SHAPES
+C                  1: STRAIGHT LINE SGEMENT
+C                  2: ELLIPTICAL OR CIRCULAR SEGEMENT
+C           NTSG : FOR COMBOUND SEGMENTS, TOTAL NUMBER OF THE
+C                  SEGMENTS OF ALL BOUNDARIES
+C ----------------------------------------------------------------
+    3 CALL SECTMOD(SEG,NCELE,JKODE,SKEYW,NBOUN,NSHAP,NSEGM,NELEMB,
+     &             NNODEB,NTSG,MEL,MBD,INES,SGTYP,MSG)
+C^^^^^^^^^^^^^^^^^^^^
+C           INES : INDEX 0: NUMBER OF ELEMENTS IN A SEGMENT WERE 0
+C                        1: THERE WERE NOT 0 NUMBER OF ELEMENTS IN ANY SEGMENT
+      GO TO 111
+C
+C ----------------------------------------------------------------
+C  MODULE : MATE, READS THE MATERIAL PROPERTIES
+C                YOUN: YOUNG'S MODULUS
+C                SHEA: SHEAR MODULUS G (LAME'S MU CONSTANT)
+C                POIS: POISON'S RATIO BETWEEN 0.0 AND 0.50
+C                DENS: DENSITY
+C ----------------------------------------------------------------
+    4 CALL MATERMOD(SKEYW,RYOUN,RPOIS,RDENS,MBD)
+C             MBD
+C       ATTENTION   !!!!!!!!!
+C     THERE MUST BE A LIBRARY OF MATERIALS HERE
+C
+      GO TO 111
+C
+C ----------------------------------------------------------------
+C  MODULE : STEP, READ THE NUMBER OF THE TIME STEPS
+C                 AND THE COEFFICINTS JP1 FOR FFT
+C                   DEFAULT VALUE NSTEP=20
+C                   JP1=2,2,5
+C ----------------------------------------------------------------
+    5 CALL STEPMOD(JP1,N8,MBD)
+      GO TO 111
+C
+C ----------------------------------------------------------------
+C  MODULE : TIMEMOD, READ THE TOTAL TIME INTERVAL OF INTEREST
+C ---------------------------------------------------------------
+    6 CALL TIMEMOD(RTIME)
+      GO TO 111
+C
+C ----------------------------------------------------------------
+C  MODULE : HOOP, READ THE NUMBER OF BOUNDARY STRESSES TO PRINTED OUT.
+C                 IT MUST BE : NHOOP<= 3*NNODE, FOR TIME DOMAIN AND  LAPLACE
+C                              DOMAIN (THE STRESS IN THE LOGITUDINAL
+C                              DIRECTION ARE CALCULATED TOO)
+C ----------------------------------------------------------------
+    7 CALL HOOPMOD(SKEYW,NHPOS,MEL)
+      GO TO 111
+
+    8 CALL PRESMOD(SKEYW,MMBCU,MND,MDM)
+      GO TO 111
+C
+C ---------------------------------------------------------------------
+C   MODULE: PRES, READ THE PRESCRIBED BOUNDARY CONDITIONS
+C                    0: PRESCRIBED TRACTION
+C                    1:   -//-     DISPLACEMENT
+C     NTOTA  :NUMBER OF NODES THAT WE WANT TO PRESCRIBE DISPLACEMENT CONDITIONS
+C           IF NTOTA=0, OR IF WE DON'T PUT THE MODULE BCOND AT ALL THEN WE HAVE
+C           ALL-TRACTION PRESCRIBED, IT MEANS THAT ALL MBCU=0
+C     NPOSI :NODE NUMBER
+C     NAXIS:AXIS NUMBER, 1:X-AXIS, 2:Y-AXIS  (2-D PROBLEM)
+C     NCOND :BOUNDARY CONDITION, 0 OR 1
+C     FOR ALL THE OTHER NODES THAT WE DON'T DETERMINE, MBCU IS 0.
+C ---------------------------------------------------------------------- 
+C      READ THE SECOND TITLE TOTA, POSI, AXIS, COND
+C      THE TOTAL.NODES IS MORE CONVINIENT TO BE IN A LIN ALONE
+C      BUT THEY CAN BE IN THE SAME LINE ALL TOGETHER.
+C      READ THE ONE TITLE OR ALL THE TITLES:
+C           IF THE RETURN VALUE OF NT=1 THEN THERE IS ONLY ONE TITLE
+C                             OTHERWISE MORE TITLES
+    9 CALL PRESMOD(SKEYW,MMBCU,MND,MDM)
+      GO TO 111
+C
+C -------------------------------------------------------------------------
+C  MODULE: LOAD, READ THE STRESS COMPONENTS OF A PRESSURE WAVE, THAT
+C                 IS SUDDENLY APPLIED AND MAINTAINED AT A ZERO DISTANCE 
+C                 FROM THE BOUNDARY, (NODE 1 FOR CIRCLE, SQUARE OR RECTANGLE 
+C                 AND ANY OTHER NUMBER FOR ANY SECTION).
+C                 WE HAVE AN INCIDENT DILATATIONAL (P) WAVE WITH STRESS RSTRE
+C                 IN X DIRECTION, THAT GENERATES A SHEAR (S) WAVE EQUAL TO
+C                 RNORM=RSTRE*RRNU/(1-RRNU).
+C                 THE STRESSES ARE
+C                 - : COMPRESSINAL WAVE
+C           RANGL: ANGLE (IN RAD(IB)) OF THE AXIS OF INCIDENT WAVE WITH X-AXIS
+C                  POSITIVE IN ANTI-CLOCKWISE DIRECTION, FROM 0<=RANGL<2*PI
+C                  0: AXIS OF INCIDENT WAVE(DIRECTION OF P STRESS), IS 
+C                     IDENTICAL TO X AXIS
+C                  PI/2: Y AXIS
+C                  PI:  -X AXIS
+C                  3*PI/2: -Y AXIS
+C           RPX,RPY: POSITION OF THE WAVEFRONT, THAT FIRST ARRIVES (STARTING
+C                  POINT AT TIME=0). IF IT IS NOT GIVEN, THEN THE PROGRAM 
+C                  AUTOMATICALLY CALCULATES THE POSITION (NEAREST TO THE NODE
+C                  THAT FIRST ENCOUNTERS)
+C           KEXPL: INDEX, RETURN VALUE
+C                    1: EXPLOSION.POINT SUBMODULUS FOUND
+C                    0:     -//-            -//-   NOT FOUND
+C                  
+C           RSTRE : AXIAL INCIDENT STRESS, AT NODE 1, AT TIME 0
+C           RNORM : SHEAR INCIDENT STRESS, AT NODE 1, AT TIME 0
+C -------------------------------------------------------------------------
+   10 LWAV=0
+      CALL LOADMOD(SKEYW,RANGL,RSTRE,RNSTRE,RNORM,
+     &  RPX,RPY,LWAV,KEXPL,KSURF,PSURFX,PSURFY,KTRAC,TRACX,TRACY,
+     &  NBOUN,MBD,MEL,MND)
+      GO TO 111
+C
+C -------------------------------------------------------------------------
+C  MODULE: END, READ THE END OF THE FILE
+C -------------------------------------------------------------------------
+   11 WRITE(6,401)
+  401 FORMAT('END')
+      GO TO 19
+C ----------------------------------------------------------------
+C  MODULE : FAIL, READS THE CONSTANTS FOR HOOK & BROWN FAILURE CRITERIA
+C                SIGC : UNIAXIAL COMPRESSIVE STRENGTH
+C                M,S: MATERIAL CONSTANTS (M,S)
+C           THIS MODULE IS NOT NECESERY
+C           DEFAULT VALUES SIGC=0.0, M=0.0, S=0.0
+C ----------------------------------------------------------------
+  12  CALL FAILMOD(SKEYW,RSIGC,RFM,RFS)
+      GO TO 111
+C
+C ----------------------------------------------------------------
+C  MODULE : FREE, READS THE INDICATION OF THE WAY OF CALCULATING
+C           THE FREE FIELD , DUE TO A FREE SURFACE, 
+C           (BY INFINITE REGION, REFLECTION FORMS OR BY SUBREGIONS)
+C           0: DEFAULT CASE. THE INCIDENT FIELD IS APPLYED ON THE SURFACES OF
+C              ALL THE BOUNDATIES, INCLUDING THE FREE SURFACE, AND THE SOLUTION
+C              IS POERFORMED AS IN THE CASE OF THE INFINITE REGIONS
+C           1: THE INCIDENT FIELD IS REFLECTED ON THE FREE SURFACE, BY
+C              THE LAWS OF REFLECTION OF HARMONIC WAVES, AND
+C              THE FREE FIELD IS CALCULATED BY ADDING THE INCIDENT FIELD
+C              AND THE REFLECTED FIELD
+C           2: THE FREE FIELD IS CALCULATED BY DEVIDING THE REGION IN 
+C              SUBREGIONS AND TAKING THE EQUILIBRIUM CONDITIONS ON THE 
+C              SURFACE OF THE SUBSURFACE
+C
+C           THIS MODULE IS NOT NECESERY
+C           DEFAULT VALUE 1
+C ----------------------------------------------------------------
+  13  CALL FREEMOD(SKEYW,MBD)
+      GO TO 111
+C
+C ----------------------------------------------------------------
+C  MODULE : SIMU, READS THE INDICATION OF THE WAY OF CALCULATING
+C           THE FREE FIELD ON A BOUNDARY
+C    WE GIVE
+C       THE NUMBER OF BOUNDARY (IN THE ORDER THAT ARE GIVEN IN SECTION.TYPE
+C       MODULUS). FOR THIS SPECIFIC BOUNDARY THE FREE FIELD STRESSES WILL
+C       BE CALCULATED FIRST BY TAKING THE EQUILIBRIUM CONDITIONS ON THIS
+C       BOUNDARY, AND THEN WITH THIS FREE FIELD AND THE INCIDENT FIELD ON
+C       THE OTHER BOUNDARIES THE FINAL FIELD IS CALCULATED (SIMULATION)
+C
+C           THIS MODULE IS NOT NECESERY
+C           IF OMMITED WE HAVE THE USUAL WAY WITHOUT SIMULATION
+C ----------------------------------------------------------------
+  14  CALL SIMUMOD(MBD)
+      GO TO 111
+C
+C ----------------------------------------------------------------
+C  MODULE : PLOTS, READS THE NUMBERS THAT INDICATE THE PLOTS IN POSTBEM 
+C           PROGRAM
+C        WE GIVE THE NUMBERS
+C          PLOTS IN RADIAL DIRECTION TO THE SURFACE OF THE MESH
+C        1: HOOP STRESS (ON THE BOUNDARY) IN THE NORMAL DIRECTION
+C        2: HOOP STRESS (ON THE BOUNDARY) IN THE TANGENTIAL DIRECTION
+C        3: HOOP STRESS (ON THE BOUNDARY) SHEAR
+C          PLOTS IN A CARTESIAN COORDINATE SYSTEM  
+C          FOR EVERY NODE FOR ALL THE TIME STEPS
+C        5:  HOOP STRESS (ON THE BOUNDARY) IN THE NORMAL DIRECTION
+C        6:  HOOP STRESS (ON THE BOUNDARY) IN THE TANGENTIAL DIRECTION
+C        7:  HOOP STRESS (ON THE BOUNDARY) SHEAR
+C        8:  DEFORMED SHAPE OF THE MESH
+C
+C           THIS MODULE IS NOT NECESERY
+C           IF OMMITED WE HAVE THE DEFAULT VALUE IS 1,2,3
+C
+C       NPLOT: ARRAY OF PLOT NUMBERS, RETURN VALUE
+C       NTOT : TOTAL NUMBER OF PLOTS
+C ----------------------------------------------------------------
+  15  CALL PLOTMOD(NTOT,NPLOT,MPL)
+      GO TO 111
+C
+C ----------------------------------------------------------------
+C  MODULE : NODE.PLOTS, READS THE NUMBERS THAT INDICATE THE NODES WHERE
+C           WE WANT PLOTS IN POSTBEM. THIS IS USED ONLY FOR PLOTS 11,12,13
+C           OF PLOTS MODULE.PLOTS
+C           NUMBERS OF NODE NUMBERS, WHERE WE WANT PLOTS
+C ----------------------------------------------------------------
+  16  CALL NODMOD(NDTOT,NDPLOT,MND)
+      GO TO 111
+C
+C ----------------------------------------------------------------
+C  MODULE : ELEMENT.NODES, READS THE NUMBERS THAT INDICATE THE NUMBER
+C           OF ELEMENTS AND THE NODES ON THEM, WHERE WE WANT PLOTS IN 
+C           POSTBEM. THIS IS USED ONLY FOR PLOTS 11,12,13 OF PLOTS 
+C           MODULE.PLOTS 
+C             GIVEN NUMBERS: PAIR OF NUMBERS
+C               A B   WHERE A IS THE ELEMENT THAT THE NODE B BELONGS.
+C ----------------------------------------------------------------
+  17  CALL ELEMOD(LETOT,LEPLOT,MND)
+      GO TO 111
+C ----------------------------------------------------------------
+C  MODULE : INTERNAL.POINTS, READS THE NUMBER OF INTERNAL POINTS, WITH
+C           THEIR CO-ORDINATES, THAT WE WANT TO CALCULATE THE TRACTIONS
+C           AND DISPLACEMENTS
+C           GIVEN NUMBERS:
+C             TOTAL NUMBER OF INTERNAL POINTS
+C             X,Y CO-ORDINATES OF THESE POINTS
+C ----------------------------------------------------------------
+  18  CALL INTERMOD(SKEYW,MIN)
+      GO TO 111
+ 19   CONTINUE
+
+C^^^^^^^^^^^^^^^^^^^^^^^^^
+C     CHECK : 0 ELEMENTS IN A BOUNDARY IS PERMITTED ONLY IN THE CASE
+C             OF FREE SURFACE, AND SOLUTION BY FORMS OF REFLECTION
+C             OF HARNONIC WAVES.
+C             NOTE : THE CHECK FOR THE OPEN FREE SURFACE HAS BEEN PERFORMED
+C                    ALREADY AT THE END OF SUBROUTINE SECTMOD.
+      IF (INES.EQ.0) THEN
+        IF(NFFS.NE.1) THEN
+          WRITE(6,558)
+          IEXIT=1
+        ENDIF
+      ENDIF
+ 522  FORMAT(/,10X,'  ERROR - MISSING MODULE TITLES. IT MUST BE FIRST'
+     &       /,10X,'          IN THE DATA FILE') 
+ 524  FORMAT(/,10X,'  ERROR - THE INPUT DATA FILE, WITH EXTENSION .DAT'
+     &       /,10X,'          DOES NOT EXIST')
+ 558  FORMAT(/,10X,'  ERROR - ZERO NUMBER OF ELEMENTS NOT PERMITED')
+ 991  CONTINUE
+      RETURN
+      END
+C
+C
+C ----------------------------------------------------------------
+      SUBROUTINE DEFAULT(NANAL,NSHAP,RANGL,NNODEB,NELEMB,NBOUN,
+     &  RSIGC,NPLOT,RFM,RFS,LWAV,RSTRE,RNSTRE,RNORM,MPL,MBD,SGTYP,
+     &  PSURFX,PSURFY,TRACX,TRACY,MSG,MEL,MND)
+C     SETS THE DEFAULTS VALUES OF THE PROBLEM
+C
+      COMMON/PROBL/NDOMA,NREGI,NUNIT
+      COMMON/CONTR/NNODE,NELEM,NSTEP,NHOOP
+      COMMON/GEOM2/RAD,RATIO,SID,XSID,YSID,XSTA,YSTA,XLAS,YLAS,
+     &             XCR0,YCR0,TYPELX,TYPELY,NDIS
+      COMMON/MATER/RLA,RMU,RNU,RHO,C1,C2,TIM,FVISC,NMODE
+      COMMON/FREE/NFFS,NSIMU
+      COMMON/EXPL/EXPLX,EXPLY,EXPLW,EXPLB,EXPLF,EXPLN,
+     &            EXPLN1,EXPLP,EXPLSV,NFORM,NDECAY
+      COMMON/BLK20/DATE,TIME,SNAME,FNAMEIN,FNAMEPRE,
+     &             FNAMEPRO,FNAMEPOS
+      COMMON/FREQ/OFREQ
+      REAL*8 OFREQ
+      DIMENSION NSHAP(MBD)
+      DIMENSION NELEMB(MBD),NNODEB(MBD)
+      DIMENSION NPLOT(MPL)
+C     CHANGING MBD IN MAIN PROGRAM, NUMBER 5 MUST BE CHANGED TO NBD ALSO
+      DIMENSION RAD(5),RATIO(5),SID(5),XSID(5),YSID(5)
+      DIMENSION XCR0(5),YCR0(5)
+      DIMENSION XSTA(5),YSTA(5),XLAS(5),YLAS(5),TYPELX(5),
+     &           TYPELY(5),NDIS(5)
+      DIMENSION NSIMU(5)
+      DIMENSION NREGI(5)
+      DIMENSION SGTYP(MSG)
+      DIMENSION PSURFX(MEL),PSURFY(MEL)
+      DIMENSION TRACX(MND),TRACY(MND)
+      REAL*8 PSURFX,PSURFY
+      REAL*8 TRACX,TRACY
+      REAL*8 SGTYP
+      REAL*8 RLA,RMU,RNU,RHO,C1,C2,TIM
+      REAL*8 RAD,SID,XSID,YSID,RATIO,XCR0,YCR0
+      REAL*8 XSTA,YSTA,XLAS,YLAS,TYPELX,TYPELY
+      REAL*8 FVISC
+      REAL*8 EXPLX,EXPLY,EXPLW,EXPLB,EXPLF,EXPLN,EXPLN1,EXPLP,EXPLSV
+      CHARACTER FNAMEIN*14,FNAMETEM*8,FNAMEPRE*14,DATE*35
+      CHARACTER FNAMEPRO*14,FNAMEPOS*14
+      CHARACTER TIME*15,SNAME*35
+C   LAPLACE DOMAIN (TRANSIENT CASE)
+       NDOMA=1
+       OFREQ=0.0D0
+C   PLANE STAIN
+       NANAL=1
+C   SI INTERNASIONAL SYSTEM FOR UNITS
+       NUNIT=1
+C   EXTERIOR PROBLEM (CAVITY)
+       DO 72 I=1,MBD 
+         NREGI(I)=1
+  72   CONTINUE
+C   TIME STEPS
+       NSTEP=20
+C   SECTION TYPE CIRCLE
+       DO 60 I=1,MBD
+         NSHAP(I)=1
+  60   CONTINUE
+C   DIRECTIONS.TOTAL IN LOADS MODULE
+C       NDIRE=1
+C   ANGLE IN LOADS MODULE (WITH X-AXIS)
+       RANGL=0.0
+CC   ROTATION IN SECTION.TYPE MODULE (WITH X-AXIS)
+C       RROTA=0.0
+C  NUMBER OF NODES  OF ALL THE BOUNDARIES WITH THE MIDDLE NODE OF QUADRILATERALS
+       NNODE=0
+C   NODE.NUMBER (NUMBER OF NODES WITH THE MIDDLE NODE OF QUADRILATERALS)
+       CALL  ICLRIRR(NNODEB,5)
+C   NODE.NUMBER (NUMBER OF NODES WITH THE MIDDLE NODE OF QUADRILATERALS)
+       CALL  ICLRIRR(NELEMB,5)
+C   CENTER OF THE SECTION, DEFAULT: THE CENTER OF THE SECTION IS
+C   THE ORIGIN OF COORDINATE AXIS
+C
+       DO 70 I=1,MBD
+         XCR0(I)=0.0D0
+         YCR0(I)=0.0D0
+  70   CONTINUE   
+C   TYPE OF LINES (UNIFORM ELEMENTS IN ALL THE LINE)
+C   THIS VALUES ARE GIVEN IN SUBROUTINE SECTMOD, IN CASE THAT BOTH
+C   VALUES TYPELX AND TYPELY ARE ZERO.
+C   TYPE OF LINES FOR THE SEGMENT LINES (UNIFORM ELEMENTS IN ALL THE LINE)
+       DO 76 I=1,MSG
+        SGTYP(I)=1.0D0
+  76   CONTINUE
+C   NUMBER OF BOUNDARIES
+       NBOUN=1
+C   PARAMETER FOR VISCISITY, ELASTIC
+       FVISC=0.0D0
+C   MODEL FOR VISCOSITY, KELVIN SOLID
+       NMODE=1
+C   FAILURE CRITERIA HOEK & BROWN
+C   UNIAXIAL COMPRESIVE STRENGTH
+       RSIGC=0.0
+C   PLOT NUMBERS
+      NPLOT(1)=1
+      NPLOT(2)=2
+      NPLOT(3)=3
+      NPLOT(4)=4
+C   CONSTANTS
+      RFM=0.0
+      RFS=0.0
+C   INDICATION THAT THE SUBMODULUS DISTANCE FOUND (USED LATER, BEFORE 
+C   CALLING WAVEFIR)
+      LWAV=0
+C   INDICATION OF THE WAY THAT THE FREE FIELD IS CALCULATED (REFLECTION FORMS,
+C   SUBREGIONS, DEFAULT VALUE: AS IN INFINITE REGIONS) 
+      NFFS=0
+C    INDICATION OF P AND SV WAVE FROM EXPLOSION POINT
+C    DEFAULT: P WAVE ONLY (SV=0)
+      EXPLP=1.0D0
+      EXPLSV=0.0D0
+C     X AND Y PRESSURES ON THE ELEMENTS
+      DO II=1,MEL
+        PSURFX(II)=0.0D0
+        PSURFY(II)=0.0D0
+      END DO
+C     X AND Y TRACTIONS ON THE NODES
+      DO II=1,MND
+        TRACX(II)=0.0D0
+        TRACY(II)=0.0D0
+      END DO
+C
+C-----------------------------------
+C   BLANK ARRAYS
+C-----------------------------------
+C     INITIATE BOUNDARY CONDITIONS MBCU 0: TRACTIONS
+C                                       1: DISPLACEMENTS
+C     ALL-TRACTIONS PRESCRIBED, WE CAN PUT DISPLACEMENTS
+C     IN MODULE BCOND
+C     THE DEFAULT VALUES ARE 0
+C      CALL CLRIRR(MMBCU,200)
+      RSTRE=0.0
+      RNSTRE=0.0
+      RNORM=0.0
+C -------------------------------------------------
+C   SPECIFY INPUT AND OUTPUT FILES, RUN INFORMATION
+C -------------------------------------------------
+      WRITE(*,210)
+  210 FORMAT(' DATE.......................................  ')
+      READ(*,214)DATE
+      WRITE(*,211)
+  211 FORMAT(/,' TIME OF RUN..............................  ')
+      READ(*,214)TIME
+      WRITE(*,212)
+  212 FORMAT(/,' YOUR NAME OR INITIALS.................... ')
+      READ(*,214)SNAME
+      WRITE(*,213)
+      WRITE(*,223)
+  213 FORMAT(/,' INPUT DATA FILENAME (WITHOUT EXTENSION, ')
+  223 FORMAT('                UP TO 8 CHARACTERS LONG).. ')
+      LE=8
+      CALL READFILE(FNAMETEM,LE,KE)
+C     FIND THE POSITION OF THE FIRST SPACE IN THE STRING (END OF THE STRING)
+      ISTR=INDEX(FNAMETEM,' ')
+      FNAMEIN=FNAMETEM
+C     ADD THE EXTENSION .DAT
+      FNAMEIN(KE+1:KE+5)='.DAT'
+  214 FORMAT(A)
+      FNAMEPRE=FNAMETEM
+C     ADD THE EXTENSION .PRE
+      FNAMEPRE(KE+1:KE+5)='.PRE'
+      FNAMEPRO=FNAMETEM
+C     ADD THE EXTENSION .PRO
+      FNAMEPRO(KE+1:KE+5)='.PRO'
+      FNAMEPOS=FNAMETEM
+C     ADD THE EXTENSION .POS
+      FNAMEPOS(KE+1:KE+5)='.POS'
+      RETURN
+      END
+C
+C ----------------------------------------------------------------
+      SUBROUTINE TYPEMOD(SKEYW,NANAL,MBD)
+C
+C ----------------------------------------------------------------
+C  MODULE : TYPE, READ THE TYPE OF THE PROBLEM. IF THIS MODULE IS NOT PRESENT
+C           THEN AUTOMATICLY COLLECTS THE DEFAULT VALUE.
+C           NDOMAIN 1: LAPLACE TRANSFORM DOMAIN (LTD) (TRANSIENT
+C                      ELASTODYNAMIC CASE)
+C                   2: TIME DOMAIN (TD) (TRANSIENT ELASTODYNAMIC CASE)
+C                   3: ELASTOSTATIC CASE
+C                   4: LAPLACE TRANSFORM DOMAIN (STEADY STATE ELASTODYNAMIC)
+C                   DEAFULT: 1
+C           NANAL   1: PLANE STRAIN
+C                   2: PLANE STRESS
+C                   DEAFULT: 1
+C       UNITS:    THIS SUBMODULUS IS NOT NECESSERY. IF IS OMITED THE 
+C                 DEFAULT VALUE IS 1
+C                 1: SI INTERNATIONAL SYSTEM UNITS (M)
+C                 2: IMPERIAL SYSTEM UNITS (FT)
+C                 3: ANY COMPINATION OF UNITS, RESPONSIBILITY OF USER.THIS
+C                   IS NOT VALID IN CASE OF EXPLOSION POITN WAVE.
+C                   THE PROGRAM IS NOT DEPENDING ON THE UNITS, EXCEPT FROM THE
+C                   PART THAT REFERS TO EXPLOSION POINT WAVE.
+C                   SO IT IS RESPONSIBILITY OF THE USER TO USE ANY UNITS, THAT 
+C                   ARE IN AGREEMENT WITH THE LENGTH UNITS IN MODULUS
+C                   SECTION.TYPE AND THE MATERIAL PROPERTIES IN MODULUS
+C                   MATERIAL.PROPERTIES.
+C                   BUT IN THE CASE THAT AN EXPLOSION POINT WAVE IS ANALYZING, 
+C                   THE UNITS MUST BE 1 OR 2 ONLY AND INTRODUCED EXACTLY
+C                   AS IN THE TWO SUBMODULUS ARE PRESCRIBED.
+C                 ANYWAY, IT IS SUGESTED TO USE THE UNITS 1 OR 2
+C ----------------------------------------------------------------
+C
+      COMMON/BLKEX/IEXIT
+      COMMON/PROBL/NDOMA,NREGI,NUNIT
+      DIMENSION SKEYW(59)
+C     CHANGING MBD IN MAIN PROGRAM, NUMBER 5 MUST BE CHANGED TO NBD ALSO
+      DIMENSION NREGI(5)
+C
+      CHARACTER SKEYW*4
+      DIMENSION SUBTITL(10)
+      CHARACTER SUBTITL*4
+C     READ THE SECOND TITLE DOMA,PLANE
+      CALL READTITL(SUBTITL,NT)
+      WRITE(6,390)
+  390 FORMAT('TYPE.PROBLEM')
+      K0=0
+      DO 802 IK=1,NT
+        IF (SUBTITL(IK).EQ.SKEYW(1)) THEN
+C         READ THE DOMAIN.LAPLACE.TIME          [NDOMA]
+          CALL READER(DUMMY,NDOM11,IREAD,0,K0)
+          NDOMA=NDOM11
+          IF ((NDOMA.LT.1).OR.(NDOMA.GT.4)) THEN
+            WRITE(6,516)NDOMA
+            IEXIT=1
+          ENDIF
+          WRITE(6,301)NDOMA
+  301     FORMAT('DOMAIN............',I3)
+        ENDIF
+        IF (SUBTITL(IK).EQ.SKEYW(2)) THEN
+C         READ THE PLANE.STRAIN.STRESS          [NANAL]
+          CALL READER(DUMMY,NANAL,IREAD,0,K0)
+          IF ((NANAL.LT.1).OR.(NANAL.GT.2)) THEN
+            WRITE(6,518)NANAL
+            IEXIT=1
+          ENDIF
+          WRITE(6,303)NANAL
+  303     FORMAT('ANALYSIS..........',I3)
+        ENDIF
+        IF (SUBTITL(IK).EQ.SKEYW(43)) THEN
+C         READ THE UNITS                        [NUNIT]
+          CALL READER(DUMMY,NUN11,IREAD,0,K0)
+          NUNIT=NUN11
+          IF ((NUNIT.LT.1).OR.(NUNIT.GT.3)) THEN
+            WRITE(6,520)NUNIT
+            IEXIT=1
+          ENDIF
+          WRITE(6,304)NUNIT
+  304     FORMAT('UNITS.............',I3)
+        ENDIF
+  802 CONTINUE
+C
+  516  FORMAT(/,10X,'  ERROR - DOMAIN NUMBER = ',I4
+     &       /,10X,' MUST BE 1: LAPLACE DOMAIN (TRANSIENT)'
+     &       /,10X,'         2: TIME DOMAIN (TRANSIENT)'
+     &       /,10X,'         3: ELASTOSTATIC CASE'
+     &       /,10X,'         4: LAPLACE DOMAIN (STEADY STATE)')
+  518  FORMAT(/,10X,'  ERROR - ANALYSIS NUMBER = ',I4
+     &       /,10X,'          MUST BE 1: PLANE STRAIN'
+     &       /,10X,'                  2: PLANE STRESS')
+  520  FORMAT(/,10X,'  ERROR - UNITS NEMBER NUMBER = ',I4
+     &       /,10X,'          MUST BE 1: SI INTERNATIONAL SYSTEM'
+     &       /,10X,'                  2: IMPERIAL SYSTEM'
+     &       /,10X,'                  3: ANY UNITS, RESPONSIBILITY
+     & OF USER')
+      RETURN
+      END
+C
+C-----------------------------------------------------------------
+      SUBROUTINE SECTMOD(SEG,NCELE,JKODE,SKEYW,NBOUN,NSHAP,NSEGM,
+     &    NELEMB,NNODEB,NTSG,MEL,MBD,INES,SGTYP,MSG)
+C
+C ----------------------------------------------------------------
+C  MODULE : SECT, READ THE NUMBER OF THE TYPE OF SECTION
+C                     1: CIRCLE, ELLIPSE
+C                     2: SQUARE
+C                     3: RECTANGLE
+C                    -K: ANY SECTION, K IS THE NUMBER OF SEGMENTS
+C           THE SUB-MODULUS SHAPE MUST BE READ FIRST
+C           FOR CIRCLE, ELLIPSE:
+C               IF RR(1)=0 OR 1 THEN CIRCLE, OTHERWISE ELLIPSE(SEMIAXIS)
+C           JKODE: RETURN VALUE, CODE NUMBERS FOR COMBOUND SHAPES
+C                  1: STRAIGHT LINE SGEMENT
+C                  2: ELLIPTICAL OR CIRCULAR SEGEMENT
+C           NTSG : FOR COMBOUND SEGMENTS, TOTAL NUMBER OF THE
+C                  SEGMENTS OF ALL THE BOUNDARIES
+C           INES : INDEX
+C                : 0 THE NUMBER OF ELEMENTS IN A SEGMENT WERE 0
+C                : 1 THERE WERE NOT 0 NUMBER OF ELEMENTS IN ANY SEGMENT
+C
+C ----------------------------------------------------------------
+C      PARAMETER(MST=200,MND=100,MEL=50,MBD=5,MPL=10,MZN=5,MDM=2)
+      COMMON/CONTR/NNODE,NELEM,NSTEP,NHOOP
+      COMMON/BLKEX/IEXIT
+      COMMON/GEOM2/RAD,RATIO,SID,XSID,YSID,XSTA,YSTA,XLAS,YLAS,
+     &             XCR0,YCR0,TYPELX,TYPELY,NDIS
+      COMMON/GEOM3/FAI,PSAI
+      COMMON/GEOM4/NXELE,NYELE
+      COMMON/PROBL/NDOMA,NREGI,NUNIT
+
+      DIMENSION SEG(MEL*7),NCELE(MEL),RR(8) 
+      DIMENSION JKODE(MEL)
+      DIMENSION NSHAP(MBD),NSEGM(MBD)
+      DIMENSION NELEMB(MBD),NNODEB(MBD)
+      DIMENSION SKEYW(59)
+C     CHANGING MBD IN MAIN PROGRAM, NUMBER 5 MUST BE CHANGED TO NBD ALSO
+      DIMENSION RAD(5),RATIO(5),SID(5),XSID(5),YSID(5)
+      DIMENSION XCR0(5),YCR0(5)
+      DIMENSION PSAI(5)
+      DIMENSION NREGI(5)
+      DIMENSION NXELE(5),NYELE(5)
+      DIMENSION XSTA(5),YSTA(5),XLAS(5),YLAS(5),TYPELX(5),
+     &         TYPELY(5),NDIS(5)
+      DIMENSION SGTYP(MSG)
+      REAL*8 SGTYP
+C
+      CHARACTER SKEYW*4
+      REAL*8 RAD,SID,XSID,YSID,RATIO,XCR0,YCR0
+      REAL*8 XSTA,YSTA,XLAS,YLAS,TYPELX,TYPELY
+      REAL*8 FAI,PSAI,SEG
+      DIMENSION SUBTITL(10)
+      CHARACTER SUBTITL*4
+      INES=1
+      NTSG=0
+      TOL=1.0E-11
+      TOL1=1.0E-6
+      PI=3.14159265359
+      WRITE(6,391)
+  391 FORMAT('SECTION.TYPE')
+      NDIAK=0
+C     READ THE SECOND TITLE
+      CALL READTITL(SUBTITL,NT)
+C     CASE FOUND THE SUBMODULUS BOUNDARIES
+      IF(SUBTITL(1).EQ.SKEYW(27)) THEN
+        K0=0
+        NDIAK=1
+C       READ THE BOUNDARIES                        [NBOUN]
+        CALL READER(DUMMY,NBOUN,IREAD,0,K0)
+        WRITE(6,393)NBOUN
+  393   FORMAT('BOUNDARIES........',I3)
+C       MAXIMUM 5 BOUNDARIES
+        IF(NBOUN.GT.MBD) THEN
+          WRITE(6,564)NBOUN,MBD
+          IEXIT=1
+        ENDIF
+      ENDIF
+C     CASE THAT NOT FOUND SUBMODULUS BOUNDARIES
+      IF(NDIAK.EQ.0) GO TO 34
+C       READ THE SUBMODULUS SHAPE REGION ELEMENTS GEOMETRY
+        CALL READTITL(SUBTITL,NT)
+  34  IF(SUBTITL(1).EQ.SKEYW(4)) THEN
+C       COUNTER FOR COMPLITING ARRAY SEG (ONLY COMBOUND BOUNDARIES)
+        JL=0
+C       LOOP FOR ALL BOUNDARIES
+        NEGAT=0
+        DO 828 IB=1,NBOUN
+C         READ FROM THE FIRST COLUMN OF A NEW LINE
+          K0=0
+          IREAD=0
+          IF (SUBTITL(1).EQ.SKEYW(4)) THEN
+C           READ THE SHAPE                            [NSHAP(IB)]
+C           POSSITIVE OR NEGATIVE(FOR COMBOUNT SHAPES, UP TO 10 SEGEMENTS)
+C           INTEGER
+            CALL READER(DUMMY,NSHAP(IB),IREAD,3,K0)
+            IF((NSHAP(IB).LT.-10).OR.(NSHAP(IB).GT.4).OR.
+     &          (NSHAP(IB).EQ.0))THEN
+              WRITE(6,510)NSHAP(IB)
+              IEXIT=1
+            ENDIF
+            WRITE(6,320)NSHAP(IB)
+          ENDIF
+  320     FORMAT('SHAPE.............',I3)
+C         CASE THAT SUBMODULUS SHAPE IS NOT FOUND, OR IS NOT IN THE PROPER 
+C         POSITION (AFTER SUBMODULUS BOUNDARIES)
+          IF(NSHAP(IB).EQ.0) THEN
+            WRITE(6,511)NSHAP(IB)
+            IEXIT=1
+          ENDIF
+          IF (SUBTITL(2).EQ.SKEYW(3)) THEN
+C           READ THE REGION (EXTERNAL,INTERNAL,OPEN,
+C                                OPEN REFLECTED FREE SURFACE)   [NREGI(IB)]
+            CALL READER(DUMMY,NREG11,IREAD,0,K0)
+            NREGI(IB)=NREG11
+            IF ((NREGI(IB).LT.1).OR.(NREGI(IB).GT.6)) THEN
+              WRITE(6,519)NREGI(IB)
+              IEXIT=1
+            ENDIF
+            WRITE(6,305)NREGI(IB)
+  305       FORMAT('REGION............',I3)
+          ENDIF
+C---------------------------------------------------------
+C       CASE OF SIMPLE SHAPE
+C---------------------------------------------------------
+        IF (NSHAP(IB).GT.0) THEN
+          DO 808 IK=1,NT
+C           READ THE NUMBER OF THE  QUADRATIC LINE ELEMENTS
+C           FOR CIRCLE,ELLIPSE : TOTAL NUMBER OF ELEMENTS
+C           FOR SQUARE         : ELEMENTS ON ONE SIDE ONLY
+C           FOR RECTANGLE : ELEMENTS ON  ONE SIDE IN EACH DIRECTION X AND Y 
+C           SUBMODULUS ELEM 
+            IF (SUBTITL(IK).EQ.SKEYW(5)) THEN
+C             ELEMENTS  IN X DIRECTION                  [NXELE(IB)]
+              CALL READER(DUMMY,NXEL11,IREAD,0,K0)
+              NXELE(IB)=NXEL11
+              IF (NXEL11.GT.50) THEN
+                WRITE(6,506)NXELE(IB)
+                IEXIT=1
+              ENDIF
+C             CHECK FOR 0 VALUE
+              IF (NXELE(IB).EQ.0) THEN 
+                WRITE(6,558) 
+                IEXIT=1
+              ENDIF
+              WRITE(6,304)NXELE(IB)
+  304         FORMAT('XELEMENTS.........',I3)
+            ENDIF
+C           FOR RECTANGLE READ THE NUMBER OF ELEMENTS IN Y DIRECTION
+            IF (NSHAP(IB).EQ.3) THEN
+              IF (SUBTITL(IK).EQ.SKEYW(6)) THEN
+C               ELEMENTS  IN Y DIRECTION                  [NYELE(IB)]
+                CALL READER(DUMMY,NYEL11,IREAD,0,K0)
+                NYELE(IB)=NYEL11
+                IF (NYELE(IB).GT.50) THEN
+                  WRITE(6,506)NYELE(IB)
+                  IEXIT=1
+                ENDIF
+C               CHECK FOR 0 VALUE
+                IF (NYELE(IB).EQ.0) THEN 
+                  WRITE(6,558) 
+                  IEXIT=1
+                ENDIF
+                WRITE(6,309)NYELE(IB)
+  309           FORMAT('YELEMENTS.........',I3)
+              ENDIF
+            ENDIF
+C         READ THE GEOMETRY OF THE SHAPE, SUBMODULUS GEOMETRY
+          IF (SUBTITL(IK).EQ.SKEYW(7)) THEN 
+C           READ 5, 6, 7 OR 8 NUMBERS IN THE SAME LINE
+            DO 909 J=1,8
+              RR(J)=0.0
+  909       CONTINUE
+            DO 910 J=1,8
+C             READ RJ                                    [RR(J)]
+              CALL READER(RR(J),IDUMMY,IREAD,1,K0)
+              IF(K0.GE.80) GO TO 911
+  910       CONTINUE
+  911       CONTINUE
+C           CIRCLE,ELLIPSE
+C           --------------
+            IF(NSHAP(IB).EQ.1) THEN
+C             CASE THAT RATIO RR(2) IS 0 OR NOT FOUND THEN SEMIAXIS=1, CIRCLE
+              IF((NSHAP(IB).EQ.1).AND.(ABS(RR(2)).LT.TOL)) RR(2)=1.0
+C             CIRCLE:
+              IF(RR(2).EQ.1.0) THEN
+                WRITE(6,321)RR(1)
+                WRITE(6,322)RR(2)
+                WRITE(6,325)RR(3)
+                WRITE(6,349)RR(4)
+C               RADIUS:
+C               CHECK FOR 0 RADIUS
+                IF (RR(1).EQ.0.0) THEN 
+                  WRITE(6,526) 
+                  IEXIT=1
+                ENDIF
+              ENDIF
+C             ELLIPSE
+              IF(RR(2).NE.1.0) THEN
+                WRITE(6,322)RR(1)
+                WRITE(6,325)RR(2)
+                WRITE(6,350)RR(3)
+                WRITE(6,352)RR(4)
+                WRITE(6,349)RR(5)
+                XCR0(IB)=RR(3)
+                YCR0(IB)=RR(4)
+                PSAI(IB)=RR(5)
+C               SEMIAXIS:
+C               CHECK FOR 0 SEMIAXIS
+                IF (RR(1).EQ.0.0) THEN 
+                  WRITE(6,529) 
+                  IEXIT=1 
+                ENDIF
+              ENDIF
+              RAD(IB)=RR(1)
+              RATIO(IB)=RR(2)
+C             TRANSLATION:
+              XCR0(IB)=RR(3)
+              YCR0(IB)=RR(4)
+C             ROTATION:
+              PSAI(IB)=RR(5)
+            ENDIF
+C           SQUARE
+C           ------
+            IF(NSHAP(IB).EQ.2) THEN
+              WRITE(6,340)RR(1)
+              WRITE(6,322)RR(2)
+              WRITE(6,325)RR(3)
+              WRITE(6,349)RR(4)
+C             SIDE LENGTH:
+C             CHECK FOR 0 RAD(IB)IUS
+              IF (RR(1).EQ.0.0) THEN 
+                WRITE(6,527) 
+                IEXIT=1
+              ENDIF
+              SID(IB)=RR(1)
+C             TRANSLATION:
+              XCR0(IB)=RR(2)
+              YCR0(IB)=RR(3)
+C             ROTATION:
+              PSAI(IB)=RR(4)
+C             IN CASE THAT THE TYPE OF LINE OF THE SIDES IS GIVEN,
+C             TAKE THIS VALUE.
+              IF(ABS(RR(5)).GT.TOL1)TYPELX(IB)=RR(5)
+              WRITE(6,361)TYPELX(IB)
+C             IF THE RATE IN X DIRECTION IS 0 BUT IN Y DIRECTION IS NOT, WRITE A
+C             MESSAGE THAT IT WOULD BE CALCULATED LATER
+              IF((ABS(RR(5)).LT.TOL1).AND.(ABS(RR(6)).GT.TOL1))
+     &            WRITE(6,367)
+C             IN CASE THAT THE TYPE OF LINE OF THE SIDES IS GIVEN,
+C             TAKE THIS VALUE.
+              IF(ABS(RR(6)).GT.TOL1)TYPELY(IB)=RR(6)
+              WRITE(6,363)TYPELY(IB)
+C             IF THE RATE IN Y DIRECTION IS 0 BUT IN Y DIRECTION IS NOT, WRITE A
+C             MESSAGE THAT IT WOULD BE CALCULATED LATER
+              IF((ABS(RR(5)).GT.TOL1).AND.(ABS(RR(6)).LT.TOL1))
+     &           WRITE(6,367)
+C             IN CASE THAT BOTH TYPELX AND TYPELY ARE 0, ACCEPT THE DEFAULT
+C             VALUES 1, FOR BOTH SIDES
+              IF((ABS(RR(5)).LT.TOL1).AND.(ABS(RR(6)).LT.TOL1)) THEN
+                TYPELX(IB)=1.0D0
+                TYPELY(IB)=1.0D0
+              ENDIF
+C             IN CASE THAT THE DISCONTINUETY INDEX IS GIVEN,
+C             TAKE THIS VALUE, INSTEAD OF THE DEFAULT VALUE 1.
+              IF(ABS(RR(7)).GT.TOL1) THEN
+                NDIS(IB) = INT(RR(7))
+                WRITE(6,365)RR(7)
+              ENDIF
+            ENDIF
+C           RECTANGLE
+C           ---------
+            IF(NSHAP(IB).EQ.3) THEN
+C             RECTANGLE:
+              WRITE(6,342)RR(1)
+              WRITE(6,344)RR(2)
+              WRITE(6,322)RR(3)
+              WRITE(6,325)RR(4)
+              WRITE(6,349)RR(5)
+C             XSIDE:
+C             CHECK FOR 0 SIDES
+              IF ((RR(1).EQ.0.0).OR.(RR(2).EQ.0.0)) THEN 
+                WRITE(6,527) 
+                IEXIT=1 
+              ENDIF
+              XSID(IB)=RR(1)
+              YSID(IB)=RR(2)
+C             TRANSLATION:
+              XCR0(IB)=RR(3)
+              YCR0(IB)=RR(4)
+C             ROTATION:
+              PSAI(IB)=RR(5)
+C             IN CASE THAT THE TYPE OF LINE OF THE SIDES IS GIVEN,
+C             TAKE THIS VALUE, INSTEAD OF THE DEFAULT VALUE 1.
+              IF(ABS(RR(6)).GT.TOL1)TYPELX(IB)=RR(6)
+              WRITE(6,361)TYPELX(IB)
+C             IF THE RATE IN X DIRECTION IS 0 BUT IN Y DIRECTION IS NOT, WRITE A
+C             MESSAGE THAT IT WOULD BE CALCULATED LATER
+              IF((ABS(RR(6)).LT.TOL1).AND.(ABS(RR(7)).GT.TOL1))
+     &           WRITE(6,367)
+C             IN CASE THAT THE TYPE OF LINE OF THE SIDES IS GIVEN,
+C             TAKE THIS VALUE.
+              IF(ABS(RR(7)).GT.TOL1)TYPELY(IB)=RR(7)
+              WRITE(6,363)TYPELY(IB)
+C             IF THE RATE IN X DIRECTION IS 0 BUT IN Y DIRECTION IS NOT, WRITE A
+C             MESSAGE THAT IT WOULD BE CALCULATED LATER
+              IF((ABS(RR(6)).GT.TOL1).AND.(ABS(RR(7)).LT.TOL1))
+     &           WRITE(6,367)
+C             IN CASE THAT BOTH TYPELX AND TYPELY ARE 0, ACCEPT THE DEFAULT
+C             VALUES 1, FOR BOTH SIDES
+              IF((ABS(RR(6)).LT.TOL1).AND.(ABS(RR(7)).LT.TOL1)) THEN
+                TYPELX(IB)=1.0D0
+                TYPELY(IB)=1.0D0
+              ENDIF
+C             IN CASE THAT THE DISCONTINUETY INDEX IS GIVEN,
+C             TAKE THIS VALUE, INSTEAD OF THE DEFAULT VALUE 1.
+              IF(ABS(RR(8)).GT.TOL1) THEN
+                NDIS(IB) = INT(RR(8))
+                WRITE(6,365) RR(8)
+              ENDIF
+            ENDIF
+C           STRAIGHT LINE
+C           -------------
+            IF(NSHAP(IB).EQ.4) THEN
+C             STRAIGHT LINE:
+              WRITE(6,354)RR(1)
+              WRITE(6,356)RR(2)
+              WRITE(6,358)RR(3)
+              WRITE(6,360)RR(4)
+C             CHECK FOR 0 LENGTH OF ELEMENT
+              EL1=SQRT((RR(1)-RR(2))**2+(RR(3)-RR(4))**2)
+              IF (EL1.LT.TOL1) THEN 
+                WRITE(6,552)
+                IEXIT=1 
+              ENDIF
+              XSTA(IB)=RR(1)
+              YSTA(IB)=RR(2)
+              XLAS(IB)=RR(3)
+              YLAS(IB)=RR(4)
+C             IN CASE THAT THE TYPE OF LINE IS GIVEN, TAKE THIS VALUE,
+C             INSTEAD OF THE DEFAULT VALUE 1.
+              IF(ABS(RR(5)).GT.TOL1)TYPELX(IB)=RR(5)
+              WRITE(6,361)TYPELX(IB)
+C             CENTER OF THE LINE
+              XCR0(IB)=(XSTA(IB)+XLAS(IB))/2.0D0
+              YCR0(IB)=(YSTA(IB)+YLAS(IB))/2.0D0
+            ENDIF
+          ENDIF
+  808   CONTINUE
+C       FOR RECTANGLE CHECK IF THE NUMBER OF ELEMENTS IN Y DIRECTION HAS
+C       NOT GIVEN (=0) AND IF SO ACCEPT THE SAME NUMBER OF ELEMENTS AS 
+C       IN X DIRECTION
+        IF (NSHAP(IB).EQ.3) THEN
+          IF (NYELE(IB).EQ.0) THEN
+C           CASE THAT THE X ELEMENTS ARE ALSO 0, ERROR
+            IF (NXELE(IB).EQ.0) THEN 
+              WRITE(6,558) 
+              IEXIT=1
+            ENDIF
+            NYELE(IB)=NXELE(IB)
+          ENDIF
+        ENDIF
+      ENDIF
+C ---------------------------------------------------
+C       CASE OF COMBOUND SHAPE
+C----------------------------------------------------
+        IF (NSHAP(IB).LT.0) THEN
+C         READ SEGMENTS AS MANY TIMES AS IS INDICATED WITH THE NUMBER
+C         AFTER THE NEGATIVE SIGN
+C         NUMBER OF SEGMENTS
+          NSEGM(IB)=-NSHAP(IB)
+C         FOR ENCLOSING ELEMENTS SURFACE AND COMBOUNT SHAPE, NEGAT=1
+          IF((NREGI(IB).EQ.5).OR.(NREGI(IB).EQ.6)) NEGAT=1
+          DO  913 L=1,NSEGM(IB)
+C           READ A NEW LINE IN EVERY LOOP EXCEPT 1ST STEP
+            IF(L.GT.1)IREAD=0
+            IF(L.GT.1)K0=0
+C           READ THE NUMBER OF THE SHAPE OF THE SEGMENT (TWO INTEGER
+C           VALUES ARE ONLY POSSIBLE 4: STRAIGHT LINE, 1: CIRCULAR OR
+C           ELLIPTICAL SEGMENT)                  [NSGSHAPE]
+C           IBL: GLOBAL COUNTER OF NCELE(IBL) (NUMBER OF ELEMENTS PER SEGMENT)
+C           IBLA: STARTING NUMBER OF IBL IN THE EXAMINING BOUNDARY IB
+            IBL=IBL+1
+            IF(L.EQ.1) IBLA=IBL
+            CALL READER(DUMMY,NSGSHAPE,IREAD,0,K0)
+            IF(NSGSHAPE.NE.1) THEN
+              IF(NSGSHAPE.NE.4) THEN
+                WRITE(6,520)NSGSHAPE
+                IEXIT=1
+              ENDIF
+            ENDIF
+C           READ THE NUMBER OF ELEMENTS IN THE SEGMENT
+C           NUMBER OF ELEMENTS OF L SEGMENT           [NCELE]
+C                                            (IB=1,NBOUN, L=1,NSEGM(IB))
+            CALL READER(DUMMY,NCELE(IBL),IREAD,0,K0)
+            IF (NCELE(IBL).GT.50) THEN
+              WRITE(6,506)NCELE(IBL)
+              IEXIT=1
+            ENDIF
+C           PERMIT 0 VALUES, FOR THE CASE OF FREE SURFACE AND SOLUTION
+C           BY FORMS OF REFLECTION OF HARNONIC WAVES
+            IF (NCELE(IBL).EQ.0) THEN
+C             CHECK IF THE BOUNDARY IS AN OPEN FREE SURFACE
+C             NOTE : THE CHECK FOR THE REFLECTION OF HARMONIC WAVES IS PERFORMED
+C                    LATER, AT THE END OF SUBROUTINE MODULES, BECAUSE THE
+C                    SUBMODULUS FREE.FIELD.STRESSES MUST BE READ.
+C             INDEX THAT NUMBER OF ELEMENTS IN A SEGMENT WERE 0
+              INES=0
+              IF (NREGI(IB).NE.4) THEN
+                WRITE(6,558)
+                IEXIT=1
+              ENDIF
+            ENDIF
+            WRITE(6,382)NCELE(IBL),L
+  382       FORMAT('ELEMENTS',I3,' OF SEGMENT ',I3)
+C           READ THE GEOMETRY OF THE SHAPE, SUBMODULUS GEOMETRY
+C           READ 4, 5 OR 7 NUMBERS IN THE SAME LINE
+            DO 912 J=1,7
+              RR(J)=0.0
+              JL=JL+1
+C             READ RJ                                    [RR(J)]
+              CALL READER(RR(J),IDUMMY,IREAD,1,K0)
+C             IN CASE OF IMPERIAL SYSTEM, CONVERT THE LENGHTS
+C             FROM (FT) TO (M)
+              IF(NUNIT.EQ.2) THEN
+C               STRAIGHT LINE
+                IF(NSGSHAPE.EQ.4) THEN
+                  IF((J.GT.0).AND.(J.LT.5)) RR(J)=RR(J)*0.3048D0
+C                  RR(1)=RR(1)*0.3048D0
+C                  RR(2)=RR(2)*0.3048D0
+C                  RR(3)=RR(3)*0.3048D0
+C                  RR(4)=RR(4)*0.3048D0
+                ENDIF
+C               ELLIPTICAL OR CIRCULAR SEGMENT
+                IF(NSGSHAPE.EQ.1) THEN
+                  IF((J.EQ.1).OR.(J.EQ.2).OR.(J.EQ.5))
+     &                RR(J)=RR(J)*0.3048D0
+C                  RR(1)=RR(1)*0.3048D0
+C                  RR(2)=RR(2)*0.3048D0
+C                  RR(5)=RR(5)*0.3048D0
+                ENDIF
+              ENDIF
+              SEG(JL)=RR(J)
+  912       CONTINUE
+C           CODE NUMBERS
+C           STRAIGHT LINE
+C           -------------
+            IF((RR(6).EQ.0.0).AND.
+     &        (RR(7).EQ.0.0).AND.(NSGSHAPE.EQ.4)) THEN
+              JKODE(IBL)=1
+              WRITE(6,354)RR(1)
+              WRITE(6,356)RR(2)
+              WRITE(6,358)RR(3)
+              WRITE(6,360)RR(4)
+C             LINE TYPE OF SEGMENT
+              IF(ABS(RR(5)).GT.TOL1) THEN
+                SGTYP(IBL)=RR(5)
+                WRITE(6,361)SGTYP(IBL)
+              ENDIF
+            ENDIF
+C           ELLIPTICAL OR CIRCULAR SEGMENT
+C           ------------------------------
+            IF(NSGSHAPE.EQ.1) THEN
+              JKODE(IBL)=2 
+C             CASE THAT RATIO(IB) RR(6) IS 0 OR NOT FOUND THEN SEMIAXIS=1,
+C             CIRCLE
+              IF(ABS(RR(6)).LT.TOL) THEN
+                RR(6)=1.0
+                SEG(JL)=1.0
+              ENDIF
+              WRITE(6,322)RR(1)
+              WRITE(6,325)RR(2)
+              WRITE(6,362)RR(3)
+              WRITE(6,364)RR(4)
+              WRITE(6,350)RR(5)
+              WRITE(6,352)RR(6)
+              WRITE(6,349)RR(7)
+            ENDIF 
+C           CHECK FOR 0 SEMIAX IN AN ELLIPSE
+            IF((RR(5).EQ.0.0).AND.(RR(6).NE.0.0)) THEN
+              WRITE(6,560)L 
+              IEXIT=1
+            ENDIF  
+  913     CONTINUE
+        ENDIF
+C       ------------------------------
+C       CONVERT THE DEGREES IN RAD(IB)IANS
+C       ------------------------------
+        PSAI(IB)=PSAI(IB)*PI/180.0D0
+C       FOR NEGATIVE ANGLES, CONVERT THEM TO POSSITIVE
+        IF (PSAI(IB).LT.0.0D0) PSAI(IB)=2.0D0*PI-PSAI(IB)
+        IF (DABS(PSAI(IB)).GE.2.0D0*PI) THEN
+          WRITE(6,550)PSAI(IB)
+          IEXIT=1
+        ENDIF
+C       -------------------------
+C       NUMBER OF TOTAL ELEMENTS 
+C       -------------------------
+C       NUMBER OF TOTAL ELEMENTS
+C       CIRCLE,ELLIPSE
+        IF((NSHAP(IB).EQ.1).OR.(NSHAP(IB).EQ.4)) NELEMB(IB)=NXELE(IB)
+C       SQUARE
+        IF(NSHAP(IB).EQ.2) NELEMB(IB)=4*NXELE(IB)
+C       RECTANGLE
+        IF(NSHAP(IB).EQ.3) NELEMB(IB)=2*(NXELE(IB)+NYELE(IB))
+C       COMBOUND SEGMENT
+        IF(NSHAP(IB).LT.0) THEN
+          NELEMB(IB)=0
+C         STARTING NUMBER OF GLOBAL COUNTER IBL IN BOUNDARY IB
+          IBL1=IBLA
+          DO 914 L=1,NSEGM(IB)
+            NELEMB(IB)=NELEMB(IB)+NCELE(IBL1)
+            IBL1=IBL1+1
+  914     CONTINUE
+        ENDIF
+C       ----------------------------------------------------------
+C       CALCULATE NUMBER OF THE NODES FROM THE KNOWN
+C       NUMBER OF ELEMENTS AND REGION
+C       ----------------------------------------------------------
+C       KNODE: NUMBER OF NODES WITHOUT THE MIDDLE NODE OF QUADRATIC ELEMENTS
+C       OR ENCLOSING ELEMENTS BOUNDARY OF COMBOUNT SHAPE (NO NEGATIVE NSHAPE)
+        IF ((NREGI(IB).EQ.1).OR.(NREGI(IB).EQ.2).OR.
+     &        (NEGAT.EQ.0)) THEN
+C         DEFAULT VALUE FOR CLOSED SURFACE(INTERIOR-EXTERIOR PROBLEM)
+          KNODE=NELEMB(IB)  
+          NNODEB(IB)=2*KNODE
+C         FOR SQUARE OR RECTANGLE AND
+C         IN CASE OF DISCONTINUITY AT THE CORNERS (VALID ONLY FOR SQUARES AND
+C         RECTANGLES), INCREASE THE NUMBER OF NODES BY 4 (4 MORE NODES AT THE
+C         CORNERS)
+          IF(((NSHAP(IB).EQ.2).OR.(NSHAP(IB).EQ.3)).AND.
+     &      (NDIS(IB).EQ.2)) NNODEB(IB)=NNODEB(IB)+4
+        ENDIF
+
+C       CLOSED SURFACE
+C       OR ENCLOSING ELEMENTS BOUNDARY OF COMBOUNT SHAPE (NEGATIVE NSHAPE)
+        IF ((NREGI(IB).EQ.3).OR.(NREGI(IB).EQ.4).OR.
+     &        (NEGAT.EQ.1)) THEN
+          IF((NREGI(IB).EQ.4).AND.(NCELE(IBL).EQ.0)) GO TO 38
+
+C         DEFAULT VALUE FOR OPEN SURFACE
+          KNODE=NELEMB(IB)+1  
+          NNODEB(IB)=2*KNODE-1
+  38      CONTINUE
+        ENDIF
+C       LOOP FOR ALL MESHES ENDS HERE
+  828   CONTINUE
+      ENDIF
+C      FIND THE NUMBER OF THE ELEMENTS NODES  AND TOTAL SEGMENTS 
+C      OF ALL THE BOUNDARIES
+       DO 829 IB=1,NBOUN
+         NELEM=NELEM+NELEMB(IB)
+         NNODE=NNODE+NNODEB(IB)
+         NTSG=NTSG+NSEGM(IB)
+  829  CONTINUE 
+C
+C     IN CASE OF IMPERIAL SYSTEM, CONVERT THE LENGHTS FROM (FT) TO (M)
+      IF(NUNIT.EQ.2) THEN
+        DO 11 II=1,NBOUN
+          RAD(II)=RAD(II)*0.3048D0
+          SID(II)=SID(II)*0.3048D0
+          XSID(II)=XSID(II)*0.3048D0
+          YSID(II)=YSID(II)*0.3048D0
+          XCR0(II)=XCR0(II)*0.3048D0
+          YCR0(II)=YCR0(II)*0.3048D0
+          XSTA(IB)=XSTA(IB)*0.3048D0
+          YSTA(IB)=YSTA(IB)*0.3048D0
+          XLAS(IB)=XLAS(IB)*0.3048D0
+          YLAS(IB)=YLAS(IB)*0.3048D0
+  11    CONTINUE
+      ENDIF
+  321 FORMAT('RADIUS............',F12.3)
+  322 FORMAT('XCENTER...........',F12.3)
+  325 FORMAT('YCENTER...........',F12.3)
+  349 FORMAT('ROTATION..........',F12.3)
+  340 FORMAT('SIDE..............',F12.3)
+  342 FORMAT('XSIDE.............',F12.3)
+  344 FORMAT('YSIDE.............',F12.3)
+  350 FORMAT('SEMIAXIS..........',F12.3)
+  352 FORMAT('RATIO.............',F12.3)
+  354 FORMAT('X0 START NODE.....',F12.3)
+  356 FORMAT('Y0 START NODE.....',F12.3)
+  358 FORMAT('XL LAST NODE......',F12.3)
+  360 FORMAT('YL LAST NODE......',F12.3)
+  361 FORMAT('TYPE OF LINEX.....',F12.3)
+  363 FORMAT('TYPE OF LINEY.....',F12.3)
+  362 FORMAT('TH1 START ANGLE...',F12.3)
+  364 FORMAT('TH2 LAST ANGLE....',F12.3)
+C  365 FORMAT('CORNER DISCONTIN..',5I3)
+  365 FORMAT('CORNER DISCONTIN..',F12.3)
+  367 FORMAT(25X,'(**IT WOULD BE CALCULATED AUTOMATICALLY)')
+C
+ 506  FORMAT(/,10X,'  ERROR - NUMBER OF ELEMENTS = ',I4,
+     &             ' MUST BE <= 50')
+ 510  FORMAT(/,10X,'  ERROR - TYPE OF SECTION = ',I3,
+     &             ' MUST BE BETWEEN -10 AND 4')
+ 511  FORMAT(/,10X,'  ERROR - TYPE OF SECTION = ',I3,' MUST NOT BE 0'
+     &       /,10X,'          OR MUST BE PLACED IMIDIATLY AFTER 
+     &SUBMODULUS BOUNDARIES')
+ 519  FORMAT(/,10X,'  ERROR - REGION NUMBER = ',I4
+     &       /,10X,'          MUST BE 1, 2, 3, 4, 5 OR 6 ')
+ 520  FORMAT(/,10X,'  ERROR - SHAPE NUMBER OF SEGMENT = ',I4
+     &       /,10X,' MUST BE 4:STRAIGHT LINE OR 1:ELLIPTICAL SEG.')
+ 526  FORMAT(/,10X,'  ERROR - THE RADIUS OF THE CIRCLE IS 0')
+ 527  FORMAT(/,10X,'  ERROR - THE SIDE LENGTH IS 0')
+ 529  FORMAT(/,10X,'  ERROR - THE AXIS LENGTH IS 0')
+ 550  FORMAT(/,10X,'  ERROR - THE ANGLE IN SUBMODULUS ROTATION ', 
+     &F12.3, /,10X,'  MUST BE 0 <= ROTATION < 360 DEG')
+ 552  FORMAT(/,10X,'  ERROR - THE LINE LENGTH IS 0')
+ 558  FORMAT(/,10X,'  ERROR - ZERO NUMBER OF ELEMENTS NOT PERMITED')
+ 560  FORMAT(/,10X,'  ERROR - THE SEMIAXIS OF THE ELLIPTICAL ' 
+     &       /,10X,'  SEGMENT -',I3,' IS 0')
+ 564  FORMAT(/,10X,'  ERROR - THE NUMBER OF MESHES IN SUBMODULUS 
+     & BOUNDARIES',I3,
+     &       /,10X,'  MUST BE <=',I3)
+      RETURN
+      END
+C ----------------------------------------------------------------
+      SUBROUTINE MATERMOD(SKEYW,RYOUN,RPOIS,RDENS,MBD)
+C ----------------------------------------------------------------
+C  MODULE : MATE, READS THE MATERIAL PROPERTIES
+C                YOUN: YOUNG'S MODULUS
+C                POIS: POISON'S RATIO BETWEEN 0.0 AND 0.50
+C                DENS: DENSITY
+C           VISC: VISCOSITY OF THE MATERIAL
+C                ONLY FOR LAPLACE DOMAIN
+C           MODE: MODEL FOR VISCOSITY
+C                 1: KELVIN SOLID, 2: MAXWELL FLUID
+C                 ONLY FOR LAPLACE DOMAIN
+C ----------------------------------------------------------------
+C      PARAMETER(MST=200,MND=100,MEL=50,MBD=5,MPL=10,MZN=5,MDM=2)
+      COMMON/BLKEX/IEXIT
+      COMMON/MATER/RLA,RMU,RNU,RHO,C1,C2,TIM,FVISC,NMODE
+      COMMON/PROBL/NDOMA,NREGI,NUNIT
+      DIMENSION SKEYW(59)
+      CHARACTER SKEYW*4
+      DIMENSION SUBTITL(10)
+C     CHANGING MBD IN MAIN PROGRAM, NUMBER 5 MUST BE CHANGED TO NBD ALSO
+      DIMENSION NREGI(5)
+      CHARACTER SUBTITL*4
+      REAL*8 RLA,RMU,RNU,RHO,C1,C2,TIM
+      REAL*8 FVISC
+C
+C     READ THE SECOND TITLE YOUN,SHEA,POIS,DENS
+      CALL READTITL(SUBTITL,NT)
+      WRITE(6,392)
+  392 FORMAT('MATERIAL.PROPERTIES')
+      K0=0
+      DO 810 IK=1,NT
+        IF (SUBTITL(IK).EQ.SKEYW(8)) THEN
+C         READ THE E                              [RYOUN]
+          CALL READER(RYOUN,IDUMMY,IREAD,1,K0)
+          IF (RYOUN.LT.0.0) THEN
+            WRITE(6,502)RYOUN
+            IEXIT=1
+          ENDIF
+C         IN CASE OF IMPERIAL SYSTEM, CONVERT THE
+C         YOUNG'S MODULUS E FROM LB/IN**2 (PSI), TO (MPA)
+          IF(NUNIT.EQ.2) RYOUN=RYOUN*6.895/1000.0
+          WRITE(6,310)RYOUN
+  310     FORMAT('E (MPa)...........',F12.3)
+        ENDIF
+C
+        IF (SUBTITL(IK).EQ.SKEYW(10)) THEN
+C         READ THE POISSON.RATIO                 [RPOIS]
+          CALL READER(RPOIS,IDUMMY,IREAD,1,K0)
+          IF (RPOIS.LT.0.0) THEN
+            WRITE(6,502)RPOIS
+            IEXIT=1
+          ENDIF
+          IF (RPOIS.GT.0.50) THEN
+            WRITE(6,508)RPOIS
+            IEXIT=1
+          ENDIF
+          WRITE(6,314)RPOIS
+  314     FORMAT('NU................',F12.3)
+        ENDIF
+        IF (SUBTITL(IK).EQ.SKEYW(11)) THEN
+C         READ THE DENSITY                       [RDENS]
+          CALL READER(RDENS,IDUMMY,IREAD,1,K0)
+          IF (RDENS.LT.0.0) THEN
+            WRITE(6,502)RDENS
+            IEXIT=1
+          ENDIF
+C         IN CASE OF SI SYSTEM, CONVERT THE MASS DENSITY FROM (MG/M3)
+C         TO (MPA*S**2/M**2), FOR COMPATIBILITY IN UNITS WITH E,MU AND THE
+C         EXPLOSION POINT WAVE ALSO(IF EXISTS)
+          IF(NUNIT.EQ.1) THEN
+            RDENS=RDENS/1000.0
+          ENDIF
+C         IN CASE OF IMPERIAL SYSTEM, CONVERT THE FOLLOWING
+C         MASS DENSITY FROM (LB/FT**3) TO (MPA*S**2/M**2)
+C         THE QUANTITY RDENS*0.0157 GIVES [Mg/m3]
+C         AND RDENS*0.0157/1000.0 GIVES (MPA*S**2/M**2)
+          IF(NUNIT.EQ.2) RDENS=RDENS*0.0157/1000.0
+
+
+          WRITE(6,316)RDENS
+  316     FORMAT('RO (MPA*S**2/M**2).',F12.6)
+        ENDIF
+        IF (SUBTITL(IK).EQ.SKEYW(28)) THEN
+C         READ THE VISCOSITY                       [FVISC]
+          CALL READER(RFVISC,IDUMMY,IREAD,1,K0)
+C         CHECK FOR NEGATIVE VALUES
+          IF (RFVISC.LT.0.0) THEN
+            WRITE(6,502)RFVISC
+            IEXIT=1
+          ENDIF
+          WRITE(6,317)RFVISC
+  317     FORMAT('VISCOSITY.........',F12.3)
+          FVISC=RFVISC
+        ENDIF
+        IF (SUBTITL(IK).EQ.SKEYW(29)) THEN
+C         READ THE MODEL FOR VISCOSITY              [NMODE]
+C         1: KELVIN SOLID, 2: MAXWELL FLUID
+          CALL READER(DUMMY,NMODE,IREAD,0,K0)
+          IF (NMODE.LT.0) THEN
+            WRITE(6,500)NMODE
+            IEXIT=1
+          ENDIF
+          IF (NMODE.GT.2) THEN
+            WRITE(6,515)NMODE
+            IEXIT=1
+          ENDIF
+          WRITE(6,319)NMODE
+  319     FORMAT('MODEL..............',I3)
+        ENDIF
+  810 CONTINUE
+ 500  FORMAT(/,10X,'  ERROR - NEGATIVE VALUE ',I4,
+     &             ' NOT PERMITED')
+ 502  FORMAT(/,10X,'  ERROR - NEGATIVE VALUE ',F12.3,
+     &             ' NOT PERMITED') 
+ 508  FORMAT(/,10X,'  ERROR - POISSONS RATIO = ',F12.3,
+     &             ' MUST BE <= 0.50')
+ 515  FORMAT(/,10X,'  ERROR - THE NUMBER OF MODEL FOR VISCOSITY',I3
+     &       /,10X,'          MUST BE 1: FOR KELVIN SOLID MODEL'
+     &       /,10X,'                  2: FOR MAXWELL FLUID MODEL')
+      RETURN
+      END
+C
+C ---------------------------------------------------------------
+      SUBROUTINE TIMEMOD(RTIME)
+C ---------------------------------------------------------------
+C  MODULE : TIME, READ THE TOTAL TIME INTERVAL OF INTEREST
+C ---------------------------------------------------------------
+C
+      COMMON/BLKEX/IEXIT
+C     READ THE TIME.TOTAL                              [RTIME]
+  6   K0=0
+      CALL READER(RTIME,IDUMMY,IREAD,1,K0)
+      IF (RTIME.LT.0.0) THEN
+        WRITE(6,502)RTIME
+        IEXIT=1
+      ENDIF
+      WRITE(6,318)RTIME
+ 318  FORMAT('TIME.TOTAL',/,F12.3)
+ 502  FORMAT(/,10X,'  ERROR - NEGATIVE VALUE ',F12.3,
+     &             ' NOT PERMITED')
+      RETURN
+      END

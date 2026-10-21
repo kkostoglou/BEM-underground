@@ -1,0 +1,27 @@
+TITLE
+2D L.D.,RECT,INF.,EXPLOS,0 deg,11/9 un elem,val NODE.PLO,disc corn, no decay
+*given the rate for decreasing elements in y direction -3.0, automatiacally
+*calculates the rate in x direction(given 0.0), so as to have about equal
+*lengths of elements at the corners of the rectangle
+TYPE.PROBLEM
+DOMAIN ANALYSIS 
+1 1 
+SECTION.TYPE
+SHAPE ELEMENTS YELEMENTS   GEOMETRY
+  3      11         9       6.0 4.0 0.0 0.0 0.0 0.0 -3.0 2
+MATERIAL.PROPERTIES
+  E    NU   RO
+20000 0.25 2.55
+STEP.NUMBER
+  20
+TIME.TOTAL
+0.015
+LOAD.STRESSES
+EXPLOSION.POINT
+XE   YE  W   N    F   DECAY
+10.0 0.0 250 2.75 1.0   0
+PLOTS
+ 12 21 22 26 28 29 30
+NODE.PLOTS
+ 68 70 71 72 73 74 84
+END

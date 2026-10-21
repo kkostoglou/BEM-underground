@@ -1,0 +1,135 @@
+PROJ = PREBEM1
+PROJFILE = PREBEM1.MAK
+DEBUG = 1
+
+BRFLAGS  = /o $(PROJ).bsc
+PWBRMAKE  = pwbrmake
+NMAKEBSC1  = set
+NMAKEBSC2  = nmake
+BROWSE  = 0
+CC  = cl
+CFLAGS_G  = /BATCH
+CFLAGS_D  = /Gi$(PROJ).mdt /Zi /Od
+CFLAGS_R  = /Ot
+FOR  = fl
+FORFLAGS_G  = /AH /4Yb
+FORFLAGS_R  = /Ot
+FORFLAGS_D  = /Od /Zi /Ge
+MAPFILE_D  = NUL
+MAPFILE_R  = NUL
+LFLAGS_G  =  /STACK:12000  /BATCH
+LFLAGS_D  =  /CO /FAR /PACKC
+LFLAGS_R  = /EXE /FAR /PACKC
+LINKER  = link
+ILINK  = ilink
+LRF  = echo > NUL
+
+OBJS  = ..\PREBEM\PREGEOM1.obj ..\PREBEM\PREGEOM2.obj ..\PREBEM\PREGEOM3.obj\
+        ..\PREBEM\PRELAPL1.obj ..\PREBEM\PRELAPL2.obj ..\PREBEM\PRELAPL3.obj\
+        ..\PREBEM\PRELAPL4.obj ..\PREBEM\PREMAIN.obj ..\PREBEM\PRELAST.obj\
+        ..\PREBEM\PREMOD1.obj ..\PREBEM\PREMOD2.obj ..\PREBEM\PREREAD.obj\
+        ..\PREBEM\PRETIM1.obj ..\PREBEM\PRETIM2.obj ..\PREBEM\PRETIM3.obj\
+        ..\PREBEM\PREWAVFR.obj ..\PREBEM\PREWRITE.obj ..\PREBEM\PREXLATI.obj\
+        ..\PREBEM\REFLCOND.obj ..\PREBEM\PREMOD3.obj ..\PREBEM\PRETIM4.obj\
+        ..\PREBEM\BLOCK.obj
+
+all: $(PROJ).exe
+
+.SUFFIXES:
+.SUFFIXES: .obj .for
+
+..\PREBEM\PREGEOM1.obj : ..\PREBEM\PREGEOM1.FOR
+
+..\PREBEM\PREGEOM2.obj : ..\PREBEM\PREGEOM2.FOR
+
+..\PREBEM\PREGEOM3.obj : ..\PREBEM\PREGEOM3.FOR
+
+..\PREBEM\PRELAPL1.obj : ..\PREBEM\PRELAPL1.FOR
+
+..\PREBEM\PRELAPL2.obj : ..\PREBEM\PRELAPL2.FOR
+
+..\PREBEM\PRELAPL3.obj : ..\PREBEM\PRELAPL3.FOR
+
+..\PREBEM\PRELAPL4.obj : ..\PREBEM\PRELAPL4.FOR
+
+..\PREBEM\PREMAIN.obj : ..\PREBEM\PREMAIN.FOR
+
+..\PREBEM\PRELAST.obj : ..\PREBEM\PRELAST.FOR
+
+..\PREBEM\PREMOD1.obj : ..\PREBEM\PREMOD1.FOR
+
+..\PREBEM\PREMOD2.obj : ..\PREBEM\PREMOD2.FOR
+
+..\PREBEM\PREREAD.obj : ..\PREBEM\PREREAD.FOR
+
+..\PREBEM\PRETIM1.obj : ..\PREBEM\PRETIM1.FOR
+
+..\PREBEM\PRETIM2.obj : ..\PREBEM\PRETIM2.FOR
+
+..\PREBEM\PRETIM3.obj : ..\PREBEM\PRETIM3.FOR
+
+..\PREBEM\PREWAVFR.obj : ..\PREBEM\PREWAVFR.FOR
+
+..\PREBEM\PREWRITE.obj : ..\PREBEM\PREWRITE.FOR
+
+..\PREBEM\PREXLATI.obj : ..\PREBEM\PREXLATI.FOR
+
+..\PREBEM\REFLCOND.obj : ..\PREBEM\REFLCOND.FOR
+
+..\PREBEM\PREMOD3.obj : ..\PREBEM\PREMOD3.FOR
+
+..\PREBEM\PRETIM4.obj : ..\PREBEM\PRETIM4.FOR
+
+..\PREBEM\BLOCK.obj : ..\PREBEM\BLOCK.FOR
+
+
+$(PROJ).bsc : 
+
+$(PROJ).exe : $(OBJS)
+!IF $(DEBUG)
+        $(LRF) @<<$(PROJ).lrf
+$(RT_OBJS: = +^
+) $(OBJS: = +^
+)
+$@
+$(MAPFILE_D)
+$(LLIBS_G: = +^
+) +
+$(LLIBS_D: = +^
+) +
+$(LIBS: = +^
+)
+$(DEF_FILE) $(LFLAGS_G) $(LFLAGS_D);
+<<
+!ELSE
+        $(LRF) @<<$(PROJ).lrf
+$(RT_OBJS: = +^
+) $(OBJS: = +^
+)
+$@
+$(MAPFILE_R)
+$(LLIBS_G: = +^
+) +
+$(LLIBS_R: = +^
+) +
+$(LIBS: = +^
+)
+$(DEF_FILE) $(LFLAGS_G) $(LFLAGS_R);
+<<
+!ENDIF
+        $(LINKER) @$(PROJ).lrf
+
+
+.for.obj :
+!IF $(DEBUG)
+        $(FOR) /c $(FORFLAGS_G) $(FORFLAGS_D) /Fo$@ $<
+!ELSE
+        $(FOR) /c $(FORFLAGS_G) $(FORFLAGS_R) /Fo$@ $<
+!ENDIF
+
+
+run: $(PROJ).exe
+        $(PROJ).exe $(RUNFLAGS)
+
+debug: $(PROJ).exe
+        CV $(CVFLAGS) $(PROJ).exe $(RUNFLAGS)

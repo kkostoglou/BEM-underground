@@ -1,0 +1,212 @@
+* APPENDIX F CHECKING TEMPLATE - BEM INPUT DAT FILE
+* Numbered notes are comments. Keep the asterisk in column 1.
+* All lengths use the selected DAT unit; stresses are MPa in SI units.
+TITLE
+* [01] TITLE: up to 80 characters; must be the first module.
+APPENDIX F CHECK - RECTANGULAR CAVITY, PLANE P WAVE
+
+TYPE.PROBLEM
+DOMAIN ANALYSIS UNITS
+* [02] DOMAIN ANALYSIS UNITS: 1=Laplace transient, 2=direct time domain (original TD kernels), 3=elastostatic, 4=steady-state Laplace, 5=BDF2 convolution-quadrature time domain (ZONES required).
+* [03] ANALYSIS: 1=plane strain, 2=plane stress. UNITS: 1=SI, 2=imperial, 3=user combination.
+  1  1  1
+
+SECTION.TYPE
+* BOUNDARIES: number of closed/open boundaries.
+BOUNDARIES
+  1
+SHAPE REGION ELEMENTS YELEMENTS GEOMETRY
+* SHAPE: 1=ellipse/circle, 2=square, 3=rectangle, 4=straight line,
+*         -n=compound boundary made from n connected segments.
+* REGION: 1=cavity/external closed surface; 2=inclusion/internal closed surface;
+*          3=open surface; 4=open free surface; 5/6 enclosing surfaces.
+* ELEMENTS: ellipse total; square elements per side; rectangle X-side elements; line total.
+* YELEMENTS: rectangle Y-side elements only.
+* GEOMETRY depends on SHAPE:
+*   Square (SHAPE=2): XSIDE XC YC ROT TYP DIS.
+*     XSIDE=side length; XC,YC=centre; ROT=counter-clockwise rotation;
+*     TYP=element grading; DIS=corner treatment (1 shared, 2 duplicated).
+*   Rectangle (SHAPE=3): XSIDE YSIDE XC YC ROT TYPX TYPY DIS.
+*     XSIDE/YSIDE=side lengths; XC,YC=centre; ROT=rotation;
+*     TYPX/TYPY=grading on the two directions; DIS=corner treatment.
+*   Circle (SHAPE=1, equal axes): ELEMENTS RADIUS XC YC ROT.
+*     ROT is normally zero; the circle is centred at (XC,YC).
+*   Ellipse (SHAPE=1, unequal axes): ELEMENTS XSIDE YSIDE XC YC ROT.
+*     XSIDE and YSIDE are the full major/minor-axis lengths; ROT rotates
+*     the ellipse counter-clockwise. (Use the geometry order required by
+*     the selected PREBEM version when an ellipse is being entered.)
+*   Straight open surface (SHAPE=-1): -1 REGION ELEMENTS X1 Y1 X2 Y2.
+*     (X1,Y1) and (X2,Y2) are the end points; use REGION=3 or 4 for an
+*     open/free surface. The element length is the total line length divided
+*     by ELEMENTS.
+*   Compound boundary (SHAPE=-n): -n REGION followed by n segment records.
+*     Each line segment record is SHAPE=4, ELEMENTS, X1 Y1 X2 Y2; connected
+*     segments must meet end-to-start. Closed compounds must return to the
+*     first point; open compounds use REGION=3 or 4.
+* XSIDE is the positive length of the local-x sides; YSIDE is the positive
+* length of the local-y sides. XC,YC are the rectangle centre coordinates.
+* ROT is the counter-clockwise angle in degrees from global +X to local +X;
+* local +Y is the corresponding counter-clockwise perpendicular direction.
+* The four corners are generated from local coordinates (+/-XSIDE/2,
+* +/-YSIDE/2), then rotated by ROT and translated by (XC,YC).
+* For a cavity (region=1), the boundary is traversed clockwise so the cavity
+* remains on the enclosed side; other region/open-surface conventions follow
+* the REGION code and may reverse the traversal and outward normal.
+* TYP=1 uniform; p>1 grades progressively; 0<p<1 reverses the progression;
+* p<-1 grades toward both corners; -1<p<0 uses the reciprocal ratio.
+* TYPY=0 asks the original program to calculate the matching Y grading.
+* DIS=1 shared corners; DIS=2 duplicated corners for discontinuous corner stresses.
+* Example:
+* SHAPE ELEMENTS YELEMENTS GEOMETRY
+*   3       11       9     6.0 4.0 0.0 0.0 0.0 -2 -2  2
+*     Since SHAPE=3 (Rectangle), GEOMETRY: XSIDE YSIDE XC YC ROT TYPX TYPY DIS
+*   3  	  11  	   9  6.0  4.0  0.0  0.0  0.0  3.0  2.54  2
+
+MATERIAL.PROPERTIES
+* [06] E, NU, RO: Young's modulus, Poisson ratio, density.
+* In SI use MPa and Mg/m^3 as in the examples.
+   E        NU       RO
+20000.0    0.25     2.55
+
+STEP.NUMBER
+* [07] Number of time/Laplace inversion steps.
+  20
+
+TIME.TOTAL
+* [08] Total examined time in seconds.
+  0.015
+
+LOAD.STRESSES
+* Select one category: PLANE.WAVE, HARMONIC.WAVE, EXPLOSION.POINT, INSIDE.PRESSURE, or SURFACE.RAMP.
+PLANE.WAVE
+LONGITUDINAL.STRESS TRANSVERSE.SHEAR ANGLE XDISTANCE YDISTANCE
+*    XDISTANCE, YDISTANCE :
+*    The distance of the wavefront at time t=0, from the centre of the mesh is defined here.
+*    This sub-module is optional, and if it is not present then the program automatically
+*    specifies a plane wavefront at the node of the mesh that it impinges (arrives) for time=0. This point is for simple shapes :
+*        circle : at a point on the periphery
+*        ellipse: at a point on the periphery of a circle with radius the large axis
+*        square,
+*        rectangle: at a point on the periphery of a circle with radius the diagonal.
+*        for combined shapes: at a point with co-ordinates PX,PY
+*    If the sub-module XDISTANCE, YDISTANCE is specified then two real numbers
+*    are given which are the co-ordinates of the centre of wavefront at time t=0,
+*    corresponding the delays to the start measurement. If these are given, then the
+*    initial wavefront is at point (xdist,ydist) and is normal to the line that connects the
+*    centre of the mesh (xcen,ycen) with the point (xdist,ydist).
+* LONGITUDINAL.STRESS TRANSVERSE.SHEAR ANGLE
+*    -10.0 0.0 0.0
+Alternatives are documented below; activate only one category at a time.
+* HARMONIC.WAVE: add FREQUENCY to the plane-wave columns.
+*    HARMONIC.WAVE
+*    FREQUENCY LONGITUDINAL.STRESS VERTICAL.STRESS TRANSVERSE.SHEAR ANGLE XDISTANCE YDISTANCE
+*     50.0 -1000.0 0.0 0.0 0.0 0.0 0.0
+*    FREQUENCY : A real number equal to the frequency of the incident harmonic wave, measured in (Hz).
+* EXPLOSION.POINT: FORMULA XE YE W B F N N1 DECAY SV P
+*    EXPLOSION.POINT
+*    FORMULA XE YE W B F N N1 DECAY SV P
+*     2 8.0 0.0 188.7 11.65 1.0 1.57 1.50 1 0.0 1.0
+* INSIDE.PRESSURE: pressure value in MPa.
+*    INSIDE.PRESSURE
+*      10.0
+* SURFACE.RAMP: PEAK RAMP.LENGTH PLATEAU.LENGTH CENTER.X
+*    SURFACE.RAMP
+*    PEAK RAMP.LENGTH PLATEAU.LENGTH CENTER.X
+*    -6.9 10.7 24.4 0.0
+
+PLOTS
+* [10] Plot codes are problem-dependent; retain the codes required for checking.
+* Common hoop/profile codes include 1=normal, 2=tangential/hoop, 3=shear.
+ 2  5  12  21  22  26  28  29  30
+* 1: Hoop stress (on the boundary) in the normal direction.
+* 2: Hoop stress (on the boundary) in the tangential direction.
+* 3: Hoop stress (on the boundary) shear.
+* 4: Hoop stress (on the boundary) in the third direction (only for plane strain).
+* 5: Deformed shape of the mesh.
+* 6: Plots at the internal points (in a Cartesian system).
+* 11: Hoop stress (in a Cartesian system) in the normal direction.
+* 12: Hoop stress (in a Cartesian system) in the tangential direction.
+* 13: Hoop stress (in a Cartesian system) shear.
+* 14: Hoop stress (in a Cartesian system) in the third direction (only for plane
+	strain).
+* 15: Stress x (not implemented).
+* 16: Stress y (not implemented).
+* 17: Shear xy (not implemented).
+* 18: Stress in the third direction, only for plane strain (on the boundary).
+* 19: Traction x (not implemented).
+* 20: Traction y (not implemented).
+* 21: Displacements x (in a Cartesian system).
+* 22: Displacements y (in a Cartesian system).
+* 26: For the stress plots on the periphery, write the values of stresses only at the
+	nodes that are declared at NODE.PLOTS modulus. This is useful for
+	avoiding the congestion of the plot with numbers. If this number is given,
+	but no nodes are declared at NODE.PLOTS, no values are written at all.
+* 27: Plot the stresses on the periphery for every element, without taking the mean
+	value between neighbourhing nodes (the default case is to take the mean
+	value). This must not be used with plot numbers 11,12,13, in this case
+	always the mean value between neighbourhing nodes is taken.
+* 28: For the NODE.PLOTS, draw the graphs in the same page (one over the other).
+* 29: For the NODE.PLOTS, draw the graphs in dimensionless x (time) axis as x
+	values are taken the time steps numbers (1..NTINT).
+* 30: Plots in the preprocessing phase are produced.
+*	Comments
+* This modulus is not necessary. If not given, the default values are 1,2,3,4
+NODE.PLOTS
+* [11] Global node numbers for time-history plots.
+ 1  84  72  61  81  50  41
+FREE.FIELD.STRESSES
+* [12] Optional free-field-stress method for a ground free surface.
+* Enter one integer:
+*   0 = default: apply the incident field on every boundary, including the
+*       discretized free surface, and solve as an infinite-region problem.
+*   1 = reflect the incident wave at the free surface using harmonic-wave
+*       reflection laws, then add incident and reflected free fields.
+*   2 = divide the medium into subregions and impose equilibrium on the
+*       subsurface interface to calculate the free field.
+* This module is optional. If omitted, the program uses the default value 0.
+
+ZONES
+* [13] Optional multi-zone material/boundary assignment (maximum 5 zones).
+* A zone is the material between nested boundaries. Each zone row is:
+*   NUMBER BOU1 BOU2 BOU3 BOU4 BOU5 E NU RO VISC MODE
+* NUMBER is 1, 2, ...; BOU1 is the outer boundary in contact with the
+* surrounding material (0 means the zone extends to infinity). BOU2..BOU5
+* are successive inner boundaries. Use a negative boundary number for an
+* inner free surface (void) of that zone; unused boundary entries are zero.
+* E=Young's modulus, NU=Poisson ratio (0 to 0.5), RO=mass density,
+* VISC=viscosity fraction of shear modulus (0 to 1, Laplace only), and
+* MODE=1 Kelvin solid or 2 Maxwell fluid (Laplace only).
+* This module is optional. If omitted, all boundaries use the surrounding
+* material. Do not activate this empty example row unless zones are defined.
+
+GAUSSIAN.QUADRATURE
+* [14] Optional numerical-integration control.
+* The following integer is the Gaussian quadrature order used by the boundary
+* element integrations. Example: 8 requests eighth-order quadrature.
+* If this module is omitted, the program uses the default order 6.
+*    GAUSSIAN.QUADRATURE
+*	8
+
+* F.6.14 Optional element-subdivision control:
+* SUBELEMENTS improves numerical-integration accuracy by subdividing each
+* quadratic element. It requires both sections, even when defaults are used:
+*    SUBELEMENTS
+*    SINGULAR
+*      6                 (even order; default is 4)
+*    NONSINGULAR
+*      7                 (number of distance bands)
+*    DMIN DMAX NSUB
+*    0.00 0.05 12
+*    0.05 0.10 9
+*    0.10 0.30 7
+*    0.30 0.70 5
+*    0.70 1.00 3
+*    1.00 2.00 2
+*    2.00 5.00 1
+* SINGULAR is the even subdivision count when the source node lies on the
+* element. NONSINGULAR selects NSUB from the distance ratio d=r/l, where r
+* is the nearest source-node distance to the element's three nodes and l is
+* the element length. Up to ten DMIN/DMAX/NSUB bands may be supplied.
+* If omitted, the program uses its default subdivision values.
+
+END

@@ -1,0 +1,29 @@
+TITLE
+2d,L.D.,semi-infinite,P vertical incident wave, solution by refl types harmonic
+TYPE.PROBLEM
+DOMAIN ANALYSIS 
+   1      1 
+SECTION.TYPE
+BOUNDARIES
+    2
+SHAPE REGION ELEMENTS GEOMETRY
+ -1     4       8      8.0 5.0 -8.0 5.0
+  1     1       8      2.5
+MATERIAL.PROPERTIES
+  E       NU    RO
+20000.0  0.25  2.55
+STEP.NUMBER
+   20
+TIME.TOTAL
+  0.015
+LOAD.STRESSES
+PLANE.WAVE
+LONGITUDINAL.STRESS TRANSVERSE.STRESS ANGLE
+   -10.0                   0.0        270.0
+FREE.FIELD.STRESSES
+  1
+PLOTS
+2 5 12 21 22 28 29 30
+NODE.PLOTS
+ 5 7 9 11 13
+END
