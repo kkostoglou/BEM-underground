@@ -53,3 +53,7 @@ This bundle does not include an installed Python environment. Create one locally
 ## Upload to GitHub
 
 See [GITHUB_UPLOAD.md](GITHUB_UPLOAD.md) for the prepared repository contents and upload commands.
+
+## Disclaimer
+
+This software is provided “as is,” without warranties of any kind. Use it at your own risk. See [DISCLAIMER.md](DISCLAIMER.md) for details.
